@@ -1,6 +1,9 @@
 package enterprise;
+
 public class Client {
-    private String name, organization, phone,address;
+    
+    
+    private String name, organization, phone, address;
     private Order[] history;
     
     public Client(String n, String org, String p, String a, Order... h){
@@ -10,6 +13,7 @@ public class Client {
         address=a;
         history=h;       
     }
+    
     
     public String getName(){
         return name;
@@ -39,8 +43,8 @@ public class Client {
     public void setAddress(String a){
         address=a;
     }
-    public void setHistory(Order[] h){
+    public void setHistory(Order... h){
         history=h;
     }
-    
+
 }

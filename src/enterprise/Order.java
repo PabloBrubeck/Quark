@@ -40,8 +40,7 @@ public class Order {
     public void setClient(Client c){
         client=c;
     }
-    public void setCart(Quantity[] q){
+    public void setCart(Quantity... q){
         cart=q;
     }
- 
 }
