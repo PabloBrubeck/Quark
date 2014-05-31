@@ -1,6 +1,5 @@
 package gui;
 
-import database.Test;
 import java.io.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -11,7 +10,6 @@ public class MainApplication extends JFrame implements ActionListener, WindowLis
         "Informacion", "Clientes", "Pedidos", "Ventas", "Recursos Humanos", 
         "Gastos", "Balance", "Catalogo", "Prestamos", "Balace Total", "Wizard"
     };
-    
     
     private JTabbedPane tp;
     private JComponent[] cont;
@@ -44,27 +42,21 @@ public class MainApplication extends JFrame implements ActionListener, WindowLis
     }
     
     private static JPanel samplePanel(String s){
-        switch(s){
-            case "Clientes":
-            case "Ventas":
-            case "Catalogo":
-                return tablePanel(s);
-            case "Informacion":
-                return tablePanel("Empleados");  
-        }
+        try{
+            switch(s){
+                case "Clientes":
+                case "Ventas":
+                case "Catalogo":
+                    return new TableViewer(s);
+                case "Informacion":
+                    return new TableViewer("Empleados");  
+            }
+        }catch(IOException e){  }
         JPanel p=new JPanel();
         p.setLayout(new FlowLayout());
         JLabel label=new JLabel(s);
         p.add(label);
         return p;
-    }
-    private static JPanel tablePanel(String s){
-        File f=new File("new.mdb");
-        JPanel sp=new JPanel();
-        sp.setLayout(new FlowLayout());
-        JTable table=new JTable(Test.getData(f, s), Test.columnNames(f, s));
-        sp.add(table);
-        return sp;
     }
     
     @Override

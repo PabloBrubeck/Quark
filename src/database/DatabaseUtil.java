@@ -2,13 +2,15 @@ package database;
 
 import java.io.*;
 import com.healthmarketscience.jackcess.*;
-import java.util.*;
+import com.healthmarketscience.jackcess.Cursor.Savepoint;
+import com.healthmarketscience.jackcess.Cursor;
 import java.sql.*;
 import java.sql.Date;
+import java.util.*;
 
-public class Test{
+public class DatabaseUtil{
     
-    public static Object[][] getDataFormTable(Table t) throws IOException{
+    public static Object[][] getRowData(Table t) throws IOException{
         int r=t.getRowCount();
         int c=t.getColumnCount();
         String[] field=getColumnNames(t);
@@ -30,24 +32,19 @@ public class Test{
         }
         return field;
     }
-    public static Object[][] getData(File f, String table){
-        try{
-            Database db=DatabaseBuilder.open(f);
-            return getDataFormTable(db.getTable(table));
-        }catch(IOException e){
-            return new Object[0][0];
+    public static String getColumnName(Table t, int i){
+        int k=0;
+        for(Column column : t.getColumns()){
+            if(k==i){
+                return column.getName();
+            }else{
+                k++;
+            }
         }
-    }
-    public static String[] columnNames(File f, String table){
-        try{
-            Database db=DatabaseBuilder.open(f);
-            return getColumnNames(db.getTable(table));
-        }catch(IOException e){
-            return new String[0];
-        }
+        return null;
     }
     
-    public static void main(String[] args) throws IOException, SQLException{
+    public static void main(String[] args)throws IOException, SQLException{
         Database db = DatabaseBuilder.create(Database.FileFormat.V2000, new File("new.mdb"));
         
         Table empleados = new TableBuilder("Empleados").
