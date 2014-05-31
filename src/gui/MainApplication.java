@@ -21,7 +21,7 @@ public class MainApplication extends JFrame implements ActionListener, WindowLis
     private void initcomp(){
         addWindowListener(this);
         setTitle("Quark Industries");
-        setMinimumSize(new Dimension(800,400));
+        setMinimumSize(new Dimension(800,600));
         Container contentPane=getContentPane();
         contentPane.setLayout(new BorderLayout());
         
