@@ -14,15 +14,16 @@ public class DatabaseUtil{
         int r=t.getRowCount();
         int c=t.getColumnCount();
         String[] field=getColumnNames(t);
-        Object[][] data=new Object[r][];
-        for(int i=0; i<r; i++){
-            data[i]=new Object[c];
-            Row row=t.getNextRow();
+        Object[][] rowData=new Object[r][];
+        int i=0;
+        for(Row row: t){
+            rowData[i]=new Object[c];
             for(int j=0; j<c; j++){
-                data[i][j]=row.get(field[j]);
+                rowData[i][j]=row.get(field[j]);
             }
+            i++;
         }
-        return data;
+        return rowData;
     }
     public static String[] getColumnNames(Table t){
         String[] field=new String[t.getColumnCount()];
