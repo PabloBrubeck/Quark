@@ -102,7 +102,9 @@ public class MainApplication extends JFrame implements WindowListener{
                 case "Catalogo":
                     return new DataTable(db, s);
                 case "Informacion":
-                    return new DataTable(db, "Empleados");  
+                    return new DataTable(db, "Empleados");
+                case "Recursos Humanos":
+                    return new DataTable(db, "Test");  
             }
         }catch(IOException e){
             System.err.println(e);

@@ -2,8 +2,10 @@ package database;
 
 import java.io.*;
 import java.sql.*;
+import java.sql.Date;
 import java.util.*;
 import com.healthmarketscience.jackcess.*;
+import com.healthmarketscience.jackcess.util.*;
 
 public class DatabaseUtil{
     public static ArrayList<Row> sortBy(Table dbTable, String col) throws IOException{
@@ -13,9 +15,12 @@ public class DatabaseUtil{
         }
         return sorted;
     }
+    
     public static void main(String[] args)throws IOException, SQLException{
         Database db = DatabaseBuilder.open(new File("new.mdb"));
         Table table=db.getTable("Empleados");
+        new ImportUtil.Builder(db, "Imported2").setDelimiter(",").importFile(new File("my.csv"));
+        db.close();
         
         /*
         Table clientes = new TableBuilder("Clientes").

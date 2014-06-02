@@ -7,7 +7,10 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.sql.Date;
+import java.sql.SQLException;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.*;
 import javax.swing.border.*;
 import javax.swing.table.*;
@@ -57,8 +60,9 @@ public class DataTable extends JPanel{
             }
         }
         
-        InputField[] fields;
-        JButton button;
+        private InputField[] fields;
+        private JButton recordBtn;
+        private JButton importBtn;
         
         public InputPanel(){
             super(new GridLayout(0,1));
@@ -107,44 +111,66 @@ public class DataTable extends JPanel{
                     default:
                         fields[k]=new InputField(col.getName());
                         break;
+                    }
+                    add(fields[k]);
+                    k++;
                 }
-                add(fields[k]);
-                k++;
-            }
-            button=new JButton("Capturar");
-            button.addActionListener(this);
-            add(button);
+            recordBtn=new JButton("Capturar");
+            recordBtn.addActionListener(this);
+            add(recordBtn);
+            
+            importBtn=new JButton("Importar");
+            importBtn.addActionListener(this);
+            add(importBtn);
         }
         
         @Override
         public void actionPerformed(ActionEvent ae){
-            if(ae.getSource()==button){
+            if(ae.getSource()==recordBtn){
                 Object[] rowData=new Object[fields.length];
                 for(int i=0; i<fields.length; i++){
                     rowData[i]=fields[i].getData();
                 }
                 try{
-                    dbTable.addRow(rowData);
-                    dtm.addRow(rowData);
+                    addRow(rowData);
                 }catch(IOException e){
+                    System.err.println(e);
+                }
+            }if(ae.getSource()==importBtn){
+                JFileChooser fc=new JFileChooser();
+                fc.showOpenDialog(this);
+                try{
+                    addFromCsv(fc.getSelectedFile());
+                }catch(SQLException e){
                     System.err.println(e);
                 }
             }
         }
     }
     
-    private JTable table;
     private final Table dbTable;
+    private final String[] names;
+    private final DataType[] types;
+    
+    private JTable table;
     private DefaultTableModel dtm;
     private TableCellListener tcl; 
-            
+     
     public DataTable(Database db, String t) throws IOException{
         super();
         dbTable=db.getTable(t);
+        int k=0, n=dbTable.getColumnCount();
+        names=new String[n];
+        types=new DataType[n];
+        for(Column column : dbTable.getColumns()){
+           names[k]=column.getName();
+           types[k]=column.getType();
+           k++;
+        }
         initcomp();
     }
     private void initcomp() throws IOException{
-        dtm=new DefaultTableModel(getRowData(), getColumnNames());
+        dtm=new DefaultTableModel(getRowData(), names);
         table=new JTable(dtm){{
             getTableHeader().addMouseListener(new MouseAdapter(){
                 @Override
@@ -180,27 +206,64 @@ public class DataTable extends JPanel{
     public void sortBy(int col){
         
     }
-    public Object[][] getRowData() throws IOException{
+    public void addRow(Object... rowData)throws IOException{
+        dbTable.addRow(rowData);
+        dtm.addRow(rowData);
+    }
+    public void addFromCsv(File csvFileToRead)throws SQLException{
+        BufferedReader br=null;
+        String line;
+        try{
+            br=new BufferedReader(new FileReader(csvFileToRead));
+            Object[] rowData=new Object[types.length];
+            while((line=br.readLine())!=null){
+                String[] cell=line.split(",");
+                for(int i=0; i<types.length; i++){
+                    rowData[i]=parseAs(cell[i], types[i]);
+                }
+                addRow(rowData);
+            }
+        }catch(FileNotFoundException e){
+            System.err.println(e);
+        }catch(IOException e){
+            System.err.println(e);
+        }finally{
+            if(br!=null){
+                try{
+                    br.close();
+                }catch(IOException e){
+                    System.err.println(e);
+                }
+            }
+        }
+    }
+    
+    public Object parseAs(String s, DataType type){
+        switch(type){
+            case INT:
+                return Integer.parseInt(s);
+            case FLOAT:
+                return Float.parseFloat(s);
+            case DOUBLE:
+                return Double.parseDouble(s);
+            case SHORT_DATE_TIME:
+                return Date.valueOf(s);
+            default:
+                return s;
+        }
+    }
+    public Object[][] getRowData()throws IOException{
         int r=dbTable.getRowCount();
         int c=dbTable.getColumnCount();
-        String[] field=getColumnNames();
         Object[][] rowData=new Object[r][];
         int i=0;
         for(Row row: dbTable){
             rowData[i]=new Object[c];
             for(int j=0; j<c; j++){
-                rowData[i][j]=row.get(field[j]);
+                rowData[i][j]=row.get(names[j]);
             }
             i++;
         }
         return rowData;
-    }
-    public String[] getColumnNames(){
-        String[] field=new String[dbTable.getColumnCount()];
-        int k=0;
-        for(Column column : dbTable.getColumns()){
-           field[k++]=column.getName();
-        }
-        return field;
     }
 }
