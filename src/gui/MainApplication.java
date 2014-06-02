@@ -1,5 +1,6 @@
 package gui;
 
+import gui.MyMenuBar.*;
 import com.healthmarketscience.jackcess.*;
 import com.sun.java.swing.plaf.windows.WindowsLookAndFeel;
 import java.awt.*;
@@ -22,12 +23,20 @@ public class MainApplication extends JFrame implements WindowListener{
     private JComponent[] cont;
 
     public MainApplication(){
-        MyMenuBar.MyMenuItem[][] op={
-            {new MyMenuBar.MyMenuItem("Open", 'o', "openFile", this), new MyMenuBar.MyMenuItem("Save", 's', "saveFile", this), new MyMenuBar.MyMenuItem("Exit", 'e', "exit", this)},
-            {new MyMenuBar.MyMenuItem("Undo", 'z', "undo", this), new MyMenuBar.MyMenuItem("Redo", 'y', "redo", this), new MyMenuBar.MyMenuItem("Cut", 'x', "cut", this), new MyMenuBar.MyMenuItem("Copy", 'c', "copy", this), new MyMenuBar.MyMenuItem("Paste", 'v', "paste", this)},
-            {new MyMenuBar.MyMenuItem("Full Screen", '+', "fullScreen", this)},
-            {new MyMenuBar.MyMenuItem("Options", 0, "options", this)},
-            {new MyMenuBar.MyMenuItem("Help Contents", 0, "helpContents", this), new MyMenuBar.MyMenuItem("About", 0, "about", this)}
+        MyMenuItem[][] op={
+            {new MyMenuItem("Open", "control O", "openFile", this), 
+                new MyMenuItem("Save", "control S", "saveFile", this), 
+                new MyMenuItem("Exit", "alt F4", "exit", this)},
+            {new MyMenuItem("Undo", "control Z", "undo", this), 
+                new MyMenuItem("Redo", "control Y", "redo", this), 
+                new MyMenuItem("Cut", "control X", "cut", this), 
+                new MyMenuItem("Copy", "control C", "copy", this), 
+                new MyMenuItem("Paste", "control V", "paste", this),
+                new MyMenuItem("Delete", "DELETE", "delete", this)},
+            {new MyMenuItem("Full Screen", "control shift ENTER", "fullScreen", this)},
+            {new MyMenuItem("Options", null, "options", this)},
+            {new MyMenuItem("Help Contents", "F1", "helpContents", this), 
+                new MyMenuItem("About", null, "about", this)}
         };
         options=op;
         initcomp();
@@ -124,6 +133,9 @@ public class MainApplication extends JFrame implements WindowListener{
     public void paste(){
         
     }
+    public void delete(){
+        
+    }
     //View menu
     public void fullScreen(){
         setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -134,7 +146,11 @@ public class MainApplication extends JFrame implements WindowListener{
     }
     //Help menu
     public void helpContents(){
-        
+        try {
+            Desktop.getDesktop().open(new File("Help Contents.pdf"));
+        } catch (IOException e) {
+            System.err.println(e);
+        }
     }
     public void about(){
         JOptionPane.showMessageDialog(this,

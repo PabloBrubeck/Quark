@@ -1,7 +1,6 @@
 package gui;
 
 import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import javax.swing.AbstractAction;
@@ -15,7 +14,7 @@ public class MyMenuBar extends JMenuBar {
         private Method method;
         private Object target;
         private Object[] params;
-        public MyMenuItem(String s, int key, String m, Object obj, Object... args){
+        public MyMenuItem(String label, String keyStroke, String methodName, Object obj, Object... args){
             target=obj;
             params=args;
             Class<?>[] types=new Class[args.length];
@@ -23,17 +22,19 @@ public class MyMenuBar extends JMenuBar {
                 types[i]=args[i].getClass();
             }
             try{
-                method=obj.getClass().getMethod(m, types);
+                method=obj.getClass().getMethod(methodName, types);
             }catch(NoSuchMethodException | SecurityException e) {
                 System.err.println(e);
             }
-            AbstractAction a=(new AbstractAction(s){
+            AbstractAction a=(new AbstractAction(label){
                 @Override
                 public void actionPerformed(ActionEvent ae){
                     invokeMethod();
                 }
             });
-            a.putValue(AbstractAction.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.getExtendedKeyCodeForChar(key), KeyEvent.CTRL_MASK));
+            if(keyStroke!=null? !keyStroke.isEmpty(): false){
+                a.putValue(AbstractAction.ACCELERATOR_KEY, KeyStroke.getAWTKeyStroke(keyStroke));
+            }
             setAction(a);
         }
         private void invokeMethod(){
