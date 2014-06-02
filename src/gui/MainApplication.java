@@ -6,24 +6,28 @@ import com.sun.java.swing.plaf.windows.WindowsLookAndFeel;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.*;
 
 public class MainApplication extends JFrame implements WindowListener{
     private final MyMenuBar.MyMenuItem[][] options;
     private final String[] menus={"File", "Edit", "View", "Tools", "Help"};
-    private final static String[] tab={
+    private final String[] tabs={
         "Informacion", "Clientes", "Pedidos", "Ventas", "Recursos Humanos", 
         "Gastos", "Balance", "Catalogo", "Prestamos", "Balance Total", "Wizard"
     };
     
     public static File dbFile;
+    private static BufferedReader fileIn;
+    private static PrintWriter fileOut;
     private Database db;
     private JFileChooser fc;
     private JTabbedPane tp;
     private JComponent[] cont;
 
     public MainApplication(){
-        MyMenuItem[][] op={
+        MyMenuItem[][] items={
             {new MyMenuItem("Open", "control O", "openFile", this), 
                 new MyMenuItem("Save", "control S", "saveFile", this), 
                 new MyMenuItem("Exit", "alt F4", "exit", this)},
@@ -38,7 +42,7 @@ public class MainApplication extends JFrame implements WindowListener{
             {new MyMenuItem("Help Contents", "F1", "helpContents", this), 
                 new MyMenuItem("About", null, "about", this)}
         };
-        options=op;
+        options=items;
         initcomp();
         setVisible(true);
     }
@@ -49,27 +53,32 @@ public class MainApplication extends JFrame implements WindowListener{
         setTitle("Quark Industries");
         setMinimumSize(new Dimension(800,600));
         
-        //Open file
-        dbFile=new File("new.mdb");
-
+        //Get file path
+        String path="new.mdb";
+        try{
+            fileIn=new BufferedReader(new FileReader("properties.txt"));
+            path=fileIn.readLine();
+        }catch(IOException e){
+            System.err.println(e);
+        }
+        
         //Open database
         try{
+            dbFile=new File(path);
             db=DatabaseBuilder.open(dbFile);
         }catch(IOException e){
             System.err.println(e);
         }
         
         //Initialize fileChooser
-        String dir=getClass().getProtectionDomain().getCodeSource().getLocation().toString();
-        dir=dir.substring(6, dir.indexOf("/build/classes/"));
-        fc=new JFileChooser(dbFile.getPath());
+        fc=new JFileChooser(path);
         
         //Initialize tabbedPane
         tp=new JTabbedPane();
-        cont=new JPanel[tab.length];
-        for(int i=0; i<tab.length; i++){
-            cont[i]=initPanel(tab[i]);
-            tp.addTab(tab[i], cont[i]);
+        cont=new JPanel[tabs.length];
+        for(int i=0; i<tabs.length; i++){
+            cont[i]=initPanel(tabs[i]);
+            tp.addTab(tabs[i], cont[i]);
         }
         
         //Initialize statusPanel
@@ -109,6 +118,13 @@ public class MainApplication extends JFrame implements WindowListener{
     public void openFile(){
         fc.showOpenDialog(this);
         dbFile=fc.getSelectedFile();
+        try{
+            fileOut=new PrintWriter(new FileWriter(new File("properties.txt"), false));
+            fileOut.println(dbFile.getAbsolutePath());
+            fileOut.close();
+        }catch(IOException e){
+            System.out.println(e);
+        }
     }
     public void saveFile(){
         fc.showSaveDialog(this);
