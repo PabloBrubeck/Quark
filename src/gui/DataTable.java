@@ -1,17 +1,16 @@
 package gui;
 
+import com.healthmarketscience.jackcess.*;
+import com.healthmarketscience.jackcess.Cursor;
+import com.toedter.calendar.JDateChooser;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.sql.Date;
 import java.util.*;
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.border.Border;
-import com.healthmarketscience.jackcess.*;
-import com.healthmarketscience.jackcess.Cursor;
-import com.toedter.calendar.*;
-import static database.DatabaseUtil.*;
+import javax.swing.border.*;
+import javax.swing.table.*;
 
 public class DataTable extends JPanel{
     private class InputPanel extends JPanel implements ActionListener{
@@ -20,13 +19,12 @@ public class DataTable extends JPanel{
             public InputField(String s){
                 super(new BorderLayout());
                 Border b=BorderFactory.createEmptyBorder(24, 8, 8, 8);
-                b=BorderFactory.createTitledBorder(b, s, 1, 0, font);
+                b=BorderFactory.createTitledBorder(b, s, 1, 0);
                 setBorder(b);
                 initcomp();
             }
             private void initcomp(){
                 tf=new JTextField();
-                tf.setFont(font);
                 tf.setPreferredSize(new Dimension(200,30));
                 this.add(tf, "North");
             }
@@ -45,7 +43,6 @@ public class DataTable extends JPanel{
             }
             private void initcomp(){
                 dc=new JDateChooser(new Date(System.currentTimeMillis()));
-                dc.setFont(font);
                 dc.setPreferredSize(new Dimension(200,30));
                 dc.setLocale(Locale.forLanguageTag("es_MX"));
                 this.add(dc, "North");
@@ -115,8 +112,6 @@ public class DataTable extends JPanel{
                 k++;
             }
             button=new JButton("Capturar");
-            button.setFont(new Font("arial.ttf",0,12));
-            button.setPreferredSize(new Dimension(100, 40));
             button.addActionListener(this);
             add(button);
         }
@@ -139,23 +134,30 @@ public class DataTable extends JPanel{
     }
     
     private JTable table;
-    private final Font font;
     private final Table dbTable;
     private DefaultTableModel dtm;
     private TableCellListener tcl; 
             
-    public DataTable(String t) throws IOException{
+    public DataTable(Database db, String t) throws IOException{
         super();
-        font=new Font("arial.ttf",0,12);
-        Database db=DatabaseBuilder.open(MainApplication.file);
         dbTable=db.getTable(t);
         initcomp();
     }
     private void initcomp() throws IOException{
-        dtm=new DefaultTableModel(getRowData(dbTable), getColumnNames(dbTable));
-        table=new JTable(dtm);
+        dtm=new DefaultTableModel(getRowData(), getColumnNames());
+        table=new JTable(dtm){{
+            getTableHeader().addMouseListener(new MouseAdapter(){
+                @Override
+                public void mouseClicked(MouseEvent mouseEvent) {
+                    int index=convertColumnIndexToModel(columnAtPoint(mouseEvent.getPoint()));
+                    if(index>=0){
+                        sortBy(index);
+                    }
+                };
+            });
+        }};
         table.setFillsViewportHeight(true);
-        add(new JScrollPane(table), "West");
+        add(new JScrollPane(table), "Center");
         add(new InputPanel(), "East");
         
         tcl=new TableCellListener(table, new AbstractAction(){
@@ -175,4 +177,30 @@ public class DataTable extends JPanel{
         });
     }
     
+    public void sortBy(int col){
+        
+    }
+    public Object[][] getRowData() throws IOException{
+        int r=dbTable.getRowCount();
+        int c=dbTable.getColumnCount();
+        String[] field=getColumnNames();
+        Object[][] rowData=new Object[r][];
+        int i=0;
+        for(Row row: dbTable){
+            rowData[i]=new Object[c];
+            for(int j=0; j<c; j++){
+                rowData[i][j]=row.get(field[j]);
+            }
+            i++;
+        }
+        return rowData;
+    }
+    public String[] getColumnNames(){
+        String[] field=new String[dbTable.getColumnCount()];
+        int k=0;
+        for(Column column : dbTable.getColumns()){
+           field[k++]=column.getName();
+        }
+        return field;
+    }
 }

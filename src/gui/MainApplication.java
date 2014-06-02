@@ -1,73 +1,65 @@
 package gui;
 
-import java.io.*;
+import com.healthmarketscience.jackcess.*;
+import com.sun.java.swing.plaf.windows.WindowsLookAndFeel;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.*;
 import javax.swing.*;
-import com.sun.java.swing.plaf.windows.WindowsLookAndFeel;
 
-public class MainApplication extends JFrame implements ActionListener, WindowListener{
-    private class MyAction extends AbstractAction{
-        private final String name;
-        private MyAction(String s){
-            super(s);
-            name=s;
-            //putValue(ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_MASK));
-        }
-        @Override
-        public void actionPerformed(ActionEvent ae){
-            switch(name){
-                default:
-                    System.out.println(name);
-                    break;
-                case "Open File":
-                    openFile();
-                    break;
-            }
-        }
-    }
-    
+public class MainApplication extends JFrame implements WindowListener{
+    private final MyMenuBar.MyMenuItem[][] options;
+    private final String[] menus={"File", "Edit", "View", "Tools", "Help"};
     private final static String[] tab={
         "Informacion", "Clientes", "Pedidos", "Ventas", "Recursos Humanos", 
         "Gastos", "Balance", "Catalogo", "Prestamos", "Balance Total", "Wizard"
     };
-    private final String[] tag = {"File", "Edit", "View", "Tools", "Help"};
-    private final String[][] sub={
-            {"Open File", "Save", "Exit"},
-            {"Cut", "Copy", "Paste"},
-            {"Appearance"},
-            {"Options"},
-            {"Help Contents", "About"}
-        };
     
-    public static File file;
+    public static File dbFile;
+    private Database db;
     private JFileChooser fc;
     private JTabbedPane tp;
     private JComponent[] cont;
 
     public MainApplication(){
+        MyMenuBar.MyMenuItem[][] op={
+            {new MyMenuBar.MyMenuItem("Open", 'o', "openFile", this), new MyMenuBar.MyMenuItem("Save", 's', "saveFile", this), new MyMenuBar.MyMenuItem("Exit", 'e', "exit", this)},
+            {new MyMenuBar.MyMenuItem("Undo", 'z', "undo", this), new MyMenuBar.MyMenuItem("Redo", 'y', "redo", this), new MyMenuBar.MyMenuItem("Cut", 'x', "cut", this), new MyMenuBar.MyMenuItem("Copy", 'c', "copy", this), new MyMenuBar.MyMenuItem("Paste", 'v', "paste", this)},
+            {new MyMenuBar.MyMenuItem("Full Screen", '+', "fullScreen", this)},
+            {new MyMenuBar.MyMenuItem("Options", 0, "options", this)},
+            {new MyMenuBar.MyMenuItem("Help Contents", 0, "helpContents", this), new MyMenuBar.MyMenuItem("About", 0, "about", this)}
+        };
+        options=op;
         initcomp();
         setVisible(true);
     }
     private void initcomp(){
+        
         //Initialize frame
         addWindowListener(this);
         setTitle("Quark Industries");
         setMinimumSize(new Dimension(800,600));
-        Container contentPane=getContentPane();
-        contentPane.setLayout(new BorderLayout());
+        
+        //Open file
+        dbFile=new File("new.mdb");
+
+        //Open database
+        try{
+            db=DatabaseBuilder.open(dbFile);
+        }catch(IOException e){
+            System.err.println(e);
+        }
         
         //Initialize fileChooser
         String dir=getClass().getProtectionDomain().getCodeSource().getLocation().toString();
         dir=dir.substring(6, dir.indexOf("/build/classes/"));
-        fc=new JFileChooser(dir);
-        file=new File("new.mdb");
+        fc=new JFileChooser(dbFile.getPath());
         
         //Initialize tabbedPane
         tp=new JTabbedPane();
         cont=new JPanel[tab.length];
         for(int i=0; i<tab.length; i++){
-            cont[i]=samplePanel(tab[i]);
+            cont[i]=initPanel(tab[i]);
             tp.addTab(tab[i], cont[i]);
         }
         
@@ -78,37 +70,25 @@ public class MainApplication extends JFrame implements ActionListener, WindowLis
         bot.add(new Label("Cerrar sesion"));
         
         //Add components to frame
+        Container contentPane=getContentPane();
+        contentPane.setLayout(new BorderLayout());
         contentPane.add(tp, "Center");
         contentPane.add(bot, "South");
-        setJMenuBar(new MyMenu(tag, setActions()));
+        setJMenuBar(new MyMenuBar(menus, options));
     }
-    private AbstractAction[][] setActions(){
-        AbstractAction[][] a=new AbstractAction[sub.length][];
-        for(int i=0; i<a.length; i++){
-            a[i]= new AbstractAction[sub[i].length];
-            for(int j=0; j<a[i].length; j++){
-                a[i][j]=new MyAction(sub[i][j]);
-            }
-        }
-        return a;
-    }
-    
-    private void openFile(){
-        fc.showOpenDialog(this);
-        file=fc.getSelectedFile();
-    }
-    
-    private static JPanel samplePanel(String s){
+    private JPanel initPanel(String s){
         try{
             switch(s){
                 case "Clientes":
                 case "Ventas":
                 case "Catalogo":
-                    return new DataTable(s);
+                    return new DataTable(db, s);
                 case "Informacion":
-                    return new DataTable("Empleados");  
+                    return new DataTable(db, "Empleados");  
             }
-        }catch(IOException e){  }
+        }catch(IOException e){
+            System.err.println(e);
+        }
         JPanel p=new JPanel();
         p.setLayout(new FlowLayout());
         JLabel label=new JLabel(s);
@@ -116,9 +96,53 @@ public class MainApplication extends JFrame implements ActionListener, WindowLis
         return p;
     }
     
-    @Override
-    public void actionPerformed(ActionEvent ae){
+    //File menu
+    public void openFile(){
+        fc.showOpenDialog(this);
+        dbFile=fc.getSelectedFile();
     }
+    public void saveFile(){
+        fc.showSaveDialog(this);
+        String dir=fc.getSelectedFile().getName();
+    }
+    public void exit(){
+        System.exit(0);
+    }
+    //Edit menu
+    public void undo(){
+        
+    }
+    public void redo(){
+        
+    }
+    public void cut(){
+        
+    }
+    public void copy(){
+        
+    }
+    public void paste(){
+        
+    }
+    //View menu
+    public void fullScreen(){
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
+    }
+    //Tools menu
+    public void options(){
+        
+    }
+    //Help menu
+    public void helpContents(){
+        
+    }
+    public void about(){
+        JOptionPane.showMessageDialog(this,
+                "2014 Quark Industries",
+                "About",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
     @Override
     public void windowOpened(WindowEvent we){
     }
