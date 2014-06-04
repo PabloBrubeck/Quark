@@ -9,6 +9,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.text.*;
 import java.util.*;
+import java.util.logging.*;
 import javax.swing.*;
 import javax.swing.border.*;
 import javax.swing.event.*;
@@ -138,7 +139,7 @@ public class DataTable extends JPanel{
                 try{
                     addRow(rowData);
                 }catch(IOException e){
-                    e.printStackTrace();
+                    Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
                 }
         }
         public void importFromCsv(){
@@ -178,10 +179,12 @@ public class DataTable extends JPanel{
     private final String[] names;
     private final DataType[] types;
     private final String dateFormat = "dd MMM yyyy";
+    
     private JTable table;
     private DefaultTableModel dtm;
     private TableCellListener tcl;
     private JPopupMenu cellPopup, headerPopup;
+    private int indexCol;
     
     public DataTable(Database db, String t) throws IOException{
         super(new BorderLayout(20, 20));
@@ -217,57 +220,53 @@ public class DataTable extends JPanel{
                         return Float.class;
                     case DOUBLE:
                         return Double.class;
-                    case MONEY:
-                        return Currency.class;
                     case SHORT_DATE_TIME:
                         return Date.class;
-                    case TEXT:
+                     default:
                         return String.class;
-                    default:
-                        return null;
                 }
             }
         };
-        table=new JTable(dtm){{
-            getTableHeader().addMouseListener(new MouseAdapter(){
-                @Override
-                public void mouseClicked(MouseEvent me) {
-                    int index=convertColumnIndexToModel(columnAtPoint(me.getPoint()));
-                    if(index>=0 && me.getButton()==MouseEvent.BUTTON3){
-                        showHeaderPopup(me);
+        table=new JTable(dtm){
+            {
+                setFillsViewportHeight(true);
+                setRowSorter(new TableRowSorter(dtm));
+                setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+                addMouseListener(new MouseAdapter(){
+                    @Override
+                    public void mouseReleased(MouseEvent me) {
+                        int r=table.rowAtPoint(me.getPoint());
+                        if(r>=0 && r<table.getRowCount()){
+                            table.setRowSelectionInterval(r, r);
+                        }else{
+                            table.clearSelection();
+                        }
+                        int rowindex=table.getSelectedRow();
+                        if(rowindex<0){
+                            return;
+                        }if(me.isPopupTrigger() && me.getComponent() instanceof JTable){
+                            showCellPopup(me);
+                        }
                     }
-                };
-            });
-        }};
-        table.addMouseListener(new MouseAdapter(){
-            @Override
-            public void mouseReleased(MouseEvent me) {
-                int r=table.rowAtPoint(me.getPoint());
-                if(r>=0 && r<table.getRowCount()){
-                    table.setRowSelectionInterval(r, r);
-                }else{
-                    table.clearSelection();
-                }
-                int rowindex=table.getSelectedRow();
-                if(rowindex<0){
-                    return;
-                }if(me.isPopupTrigger() && me.getComponent() instanceof JTable){
-                    showCellPopup(me);
-                }
+                });
+                getTableHeader().addMouseListener(new MouseAdapter(){
+                    @Override
+                    public void mouseReleased(MouseEvent me) {
+                        indexCol=columnAtPoint(me.getPoint());
+                        if(indexCol>=0 && me.getButton()==MouseEvent.BUTTON3){
+                            showHeaderPopup(me);
+                        }
+                    };
+                });
             }
-        });
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-        table.setPreferredScrollableViewportSize(Toolkit.getDefaultToolkit().getScreenSize());
-        table.setFillsViewportHeight(true);
-        table.setRowSorter(new TableRowSorter(dtm));
+        };
+        
         table.setDefaultEditor(Date.class, new DateEditor());
         table.setDefaultRenderer(Date.class, new DefaultTableCellRenderer(){
-            SimpleDateFormat f = new SimpleDateFormat(dateFormat);
+            SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
             @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, 
-                    boolean isSelected, boolean hasFocus, int row, int column){
-                return super.getTableCellRendererComponent(table, f.format(value), isSelected,
-                        hasFocus, row, column);
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
+                return super.getTableCellRendererComponent(table, sdf.format(value), isSelected, hasFocus, row, column);
             }
         });
         
@@ -282,7 +281,7 @@ public class DataTable extends JPanel{
                         cursor.setCurrentRowValue(dbTable.getColumn(columnName), parseType(tcl.getNewValue().toString(), types[tcl.getColumn()]));
                     }
                 }catch(IOException e){
-                    e.printStackTrace();
+                    Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
                 }
             }
         });
@@ -293,19 +292,23 @@ public class DataTable extends JPanel{
         add(new InputPanel(), "East");
     }
     
+    //Cell popup
     public void showCellPopup(MouseEvent me){
         cellPopup.show(me.getComponent(), me.getX(), me.getY());
     }
+    public void deleteRow(){
+        int view=table.getSelectedRow();
+        int model=table.convertRowIndexToModel(view);
+        dtm.removeRow(model);
+    }
+    
+    //Header popup
     public void showHeaderPopup(MouseEvent me){
         headerPopup.show(me.getComponent(), me.getX(), me.getY());
     }
-    
-    public void deleteRow(){
-        int row=table.getSelectedRow();
-        dtm.removeRow(row);
-    }
     public void hideColumn(){
-        
+        TableColumnModel tcm = table.getColumnModel();
+        tcm.removeColumn(tcm.getColumn(indexCol));
     }
     public void unhideColumns(){
         
@@ -332,13 +335,13 @@ public class DataTable extends JPanel{
                 addRow(rowData);
             }
         }catch(IOException e){
-            e.printStackTrace();
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }finally{
             if(br!=null){
                 try{
                     br.close();
                 }catch(IOException e){
-                    e.printStackTrace();
+                    Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
                 }
             }
         }

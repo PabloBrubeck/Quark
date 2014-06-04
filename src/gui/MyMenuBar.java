@@ -3,6 +3,8 @@ package gui;
 import java.awt.event.ActionEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.logging.Logger;
+import java.util.logging.Level;
 import javax.swing.AbstractAction;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -25,7 +27,7 @@ public class MyMenuBar extends JMenuBar {
             try{
                 method=obj.getClass().getMethod(methodName, types);
             }catch(NoSuchMethodException | SecurityException e){
-                e.printStackTrace();
+                Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
             }
             if(keyStroke!=null? !keyStroke.isEmpty(): false){
                 putValue(AbstractAction.ACCELERATOR_KEY, KeyStroke.getAWTKeyStroke(keyStroke));
@@ -36,7 +38,7 @@ public class MyMenuBar extends JMenuBar {
             try{
                 method.invoke(target, params);
             }catch(IllegalAccessException | IllegalArgumentException | InvocationTargetException e){
-                e.printStackTrace();
+                Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
             }
         }
     }
