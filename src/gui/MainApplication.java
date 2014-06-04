@@ -9,24 +9,83 @@ import java.io.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.*;
+import javax.swing.border.*;
+import javax.swing.filechooser.FileFilter;
 
-public class MainApplication extends JFrame implements WindowListener{
-    private final MyMenuBar.MyMenuItem[][] options;
+public class MainApplication extends JFrame{
     private final String[] menus={"File", "Edit", "View", "Tools", "Help"};
     private final String[] tabs={
-        "Informacion", "Clientes", "Pedidos", "Ventas", "Recursos Humanos", 
-        "Gastos", "Balance", "Catalogo", "Prestamos", "Balance Total", "Wizard"
+        "Informacion", "Clientes", "Catalogo", "Pedidos", "Ventas", 
+        "Gastos", "Recursos Humanos", "Prestamos", "Balance", "Wizard"
     };
     
-    public static File dbFile;
-    private static BufferedReader fileIn;
-    private static PrintWriter fileOut;
+    private File dbFile;
     private Database db;
     private JFileChooser fc;
     private JTabbedPane tp;
     private JComponent[] cont;
-
+    
+    private boolean isFullScreen=false;
+    
     public MainApplication(){
+        initcomp();
+        setVisible(true);
+    }
+    private void initcomp(){
+        
+        //Initialize frame
+        setTitle("Quark Industries");
+        setMinimumSize(new Dimension(800,600));
+        addWindowListener(new WindowAdapter(){
+            @Override
+            public void windowClosing(WindowEvent we){
+                exit();
+            }
+        });
+        
+        //Initialize fileChooser
+        fc=new JFileChooser();
+        fc.setFileFilter(new FileFilter(){
+            @Override
+            public boolean accept(File file) {
+                return file.isDirectory() || file.getName().endsWith(".mdb");
+            }
+            @Override
+            public String getDescription() {
+                return "Microsoft Access Database";
+            }
+        });
+        
+        //Initialize database
+        String path="DBQUARK.mdb";
+        try{
+            dbFile=new File(path);
+            db=DatabaseBuilder.open(dbFile);
+            fc.setCurrentDirectory(dbFile);
+        }catch(IOException e){
+            e.printStackTrace();
+            fc.showOpenDialog(tp);
+            dbFile=fc.getSelectedFile();
+        }
+        
+        //Initialize tabbedPane
+        tp=new JTabbedPane();
+        try{
+            for(String s: db.getTableNames()){
+                tp.addTab(s, new DataTable(db, s));
+            }
+        }catch(IOException e){
+            e.printStackTrace();
+        }
+        
+        //Initialize statusPanel
+        JPanel status=new JPanel(new GridLayout(1,3));
+        status.setBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED));
+        status.add(new Label("Contacto"));
+        status.add(new Label("Ayuda"));
+        status.add(new Label("Cerrar sesion"));
+        
+        //Initialize menuBar
         MyMenuItem[][] items={
             {new MyMenuItem("Open", "control O", "openFile", this), 
                 new MyMenuItem("Save", "control S", "saveFile", this), 
@@ -37,62 +96,19 @@ public class MainApplication extends JFrame implements WindowListener{
                 new MyMenuItem("Copy", "control C", "copy", this), 
                 new MyMenuItem("Paste", "control V", "paste", this),
                 new MyMenuItem("Delete", "DELETE", "delete", this)},
-            {new MyMenuItem("Full Screen", "control shift ENTER", "fullScreen", this)},
+            {new MyMenuItem("Full Screen", "alt shift ENTER", "fullScreen", this)},
             {new MyMenuItem("Options", null, "options", this)},
             {new MyMenuItem("Help Contents", "F1", "helpContents", this), 
                 new MyMenuItem("About", null, "about", this)}
         };
-        options=items;
-        initcomp();
-        setVisible(true);
-    }
-    private void initcomp(){
-        
-        //Initialize frame
-        addWindowListener(this);
-        setTitle("Quark Industries");
-        setMinimumSize(new Dimension(800,600));
-        
-        //Get file path
-        String path="new.mdb";
-        try{
-            fileIn=new BufferedReader(new FileReader("properties.txt"));
-            path=fileIn.readLine();
-        }catch(IOException e){
-            System.err.println(e);
-        }
-        
-        //Open database
-        try{
-            dbFile=new File(path);
-            db=DatabaseBuilder.open(dbFile);
-        }catch(IOException e){
-            System.err.println(e);
-        }
-        
-        //Initialize fileChooser
-        fc=new JFileChooser(path);
-        
-        //Initialize tabbedPane
-        tp=new JTabbedPane();
-        cont=new JPanel[tabs.length];
-        for(int i=0; i<tabs.length; i++){
-            cont[i]=initPanel(tabs[i]);
-            tp.addTab(tabs[i], cont[i]);
-        }
-        
-        //Initialize statusPanel
-        JPanel bot=new JPanel(new GridLayout(1,3));
-        bot.add(new Label("Contacto"));
-        bot.add(new Label("Ayuda"));
-        bot.add(new Label("Cerrar sesion"));
+        setJMenuBar(new MyMenuBar(menus, items));
         
         //Add components to frame
         Container contentPane=getContentPane();
         contentPane.setLayout(new BorderLayout());
         contentPane.add(tp, "Center");
-        contentPane.add(bot, "South");
-        setJMenuBar(new MyMenuBar(menus, options));
+        contentPane.add(status, "South");
+        
     }
     private JPanel initPanel(String s){
         try{
@@ -107,7 +123,7 @@ public class MainApplication extends JFrame implements WindowListener{
                     return new DataTable(db, "Test");  
             }
         }catch(IOException e){
-            System.err.println(e);
+            e.printStackTrace();
         }
         JPanel p=new JPanel();
         p.setLayout(new FlowLayout());
@@ -120,19 +136,17 @@ public class MainApplication extends JFrame implements WindowListener{
     public void openFile(){
         fc.showOpenDialog(this);
         dbFile=fc.getSelectedFile();
-        try{
-            fileOut=new PrintWriter(new FileWriter(new File("properties.txt"), false));
-            fileOut.println(dbFile.getAbsolutePath());
-            fileOut.close();
-        }catch(IOException e){
-            System.out.println(e);
-        }
     }
     public void saveFile(){
         fc.showSaveDialog(this);
-        String dir=fc.getSelectedFile().getName();
+        String dir=fc.getSelectedFile().getAbsolutePath();
     }
     public void exit(){
+        try{
+            db.close();
+        }catch(IOException e){
+            e.printStackTrace();
+        }
         System.exit(0);
     }
     //Edit menu
@@ -156,7 +170,11 @@ public class MainApplication extends JFrame implements WindowListener{
     }
     //View menu
     public void fullScreen(){
-        setExtendedState(JFrame.MAXIMIZED_BOTH);
+        GraphicsDevice gd=GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+        if(gd.isFullScreenSupported()){
+            gd.setFullScreenWindow(isFullScreen? null: this);
+            isFullScreen=!isFullScreen;
+        }
     }
     //Tools menu
     public void options(){
@@ -167,7 +185,7 @@ public class MainApplication extends JFrame implements WindowListener{
         try {
             Desktop.getDesktop().open(new File("Help Contents.pdf"));
         } catch (IOException e) {
-            System.err.println(e);
+            e.printStackTrace();
         }
     }
     public void about(){
@@ -176,35 +194,12 @@ public class MainApplication extends JFrame implements WindowListener{
                 "About",
                 JOptionPane.INFORMATION_MESSAGE);
     }
-
-    @Override
-    public void windowOpened(WindowEvent we){
-    }
-    @Override
-    public void windowClosing(WindowEvent we){
-        System.exit(0);
-    }
-    @Override
-    public void windowClosed(WindowEvent we){
-    }
-    @Override
-    public void windowIconified(WindowEvent we){
-    }
-    @Override
-    public void windowDeiconified(WindowEvent we){
-    }
-    @Override
-    public void windowActivated(WindowEvent we){
-    }
-    @Override
-    public void windowDeactivated(WindowEvent we){
-    }
     
     public static void main(String[] args){
         try{
             UIManager.setLookAndFeel(new WindowsLookAndFeel());
         }catch(UnsupportedLookAndFeelException e){
-            System.out.println(e);
+            e.printStackTrace();
         }
         MainApplication m=new MainApplication();
     }

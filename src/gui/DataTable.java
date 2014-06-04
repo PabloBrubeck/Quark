@@ -3,33 +3,33 @@ package gui;
 import com.healthmarketscience.jackcess.*;
 import com.healthmarketscience.jackcess.Cursor;
 import com.toedter.calendar.JDateChooser;
+import gui.MyMenuBar.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
-import java.sql.Date;
-import java.sql.SQLException;
+import java.text.*;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.*;
 import javax.swing.border.*;
+import javax.swing.event.*;
+import javax.swing.filechooser.FileFilter;
 import javax.swing.table.*;
 
 public class DataTable extends JPanel{
-    private class InputPanel extends JPanel implements ActionListener{
+    private class InputPanel extends JPanel{
         private class InputField extends JPanel{
             private JTextField tf;
             public InputField(String s){
-                super(new BorderLayout());
-                Border b=BorderFactory.createEmptyBorder(24, 8, 8, 8);
-                b=BorderFactory.createTitledBorder(b, s, 1, 0);
+                super(new FlowLayout());
+                Border b=BorderFactory.createEmptyBorder();
+                b=BorderFactory.createTitledBorder(b, s);
                 setBorder(b);
                 initcomp();
             }
-            private void initcomp(){
+            public void initcomp(){
                 tf=new JTextField();
-                tf.setPreferredSize(new Dimension(200,30));
-                this.add(tf, "North");
+                tf.setPreferredSize(new Dimension(200, 26));
+                add(tf);
             }
             public String getText(){
                 return tf.getText();
@@ -42,13 +42,14 @@ public class DataTable extends JPanel{
             private JDateChooser dc;
             public DateInputField(String s){
                 super(s);
-                initcomp();
             }
-            private void initcomp(){
+            @Override
+            public void initcomp(){
+                setDefaultLocale(Locale.getDefault());
                 dc=new JDateChooser(new Date(System.currentTimeMillis()));
-                dc.setPreferredSize(new Dimension(200,30));
-                dc.setLocale(Locale.forLanguageTag("es_MX"));
-                this.add(dc, "North");
+                dc.setDateFormatString(dateFormat);
+                dc.setPreferredSize(new Dimension(200,28));
+                add(dc);
             }
             @Override
             public String getText(){
@@ -65,7 +66,7 @@ public class DataTable extends JPanel{
         private JButton importBtn;
         
         public InputPanel(){
-            super(new GridLayout(0,1));
+            super(new GridLayout(0, 1, 0, 20));
             initcomp();
         }
         private void initcomp(){
@@ -105,6 +106,14 @@ public class DataTable extends JPanel{
                             }
                         };
                         break;
+                    case MONEY:
+                        fields[k]=new InputField(col.getName()){
+                            @Override
+                            public Currency getData(){
+                                return Currency.getInstance(getText());
+                            }
+                        };
+                        break;
                     case SHORT_DATE_TIME:
                         fields[k]=new DateInputField(col.getName());
                         break;
@@ -115,49 +124,67 @@ public class DataTable extends JPanel{
                     add(fields[k]);
                     k++;
                 }
-            recordBtn=new JButton("Capturar");
-            recordBtn.addActionListener(this);
+            recordBtn=new JButton(new MyAction("Capturar", null, "record", this));
             add(recordBtn);
             
-            importBtn=new JButton("Importar");
-            importBtn.addActionListener(this);
+            importBtn=new JButton(new MyAction("Importar", null, "importFromCsv", this));
             add(importBtn);
         }
-        
-        @Override
-        public void actionPerformed(ActionEvent ae){
-            if(ae.getSource()==recordBtn){
-                Object[] rowData=new Object[fields.length];
+        public void record(){
+            Object[] rowData=new Object[fields.length];
                 for(int i=0; i<fields.length; i++){
                     rowData[i]=fields[i].getData();
                 }
                 try{
                     addRow(rowData);
                 }catch(IOException e){
-                    System.err.println(e);
+                    e.printStackTrace();
                 }
-            }if(ae.getSource()==importBtn){
-                JFileChooser fc=new JFileChooser();
-                fc.showOpenDialog(this);
-                try{
-                    addFromCsv(fc.getSelectedFile());
-                }catch(SQLException e){
-                    System.err.println(e);
-                }
-            }
         }
+        public void importFromCsv(){
+            JFileChooser fc=new JFileChooser();
+            fc.setFileFilter(new FileFilter(){
+                @Override
+                public boolean accept(File file){
+                    return file.isDirectory() || file.getName().endsWith(".csv");
+                }
+                @Override
+                public String getDescription() {
+                    return "CSV (Comma delimited)";
+                }
+            });
+            fc.showOpenDialog(this);
+            addFromCsv(fc.getSelectedFile());
+        }
+    }
+    private class DateEditor extends AbstractCellEditor implements TableCellEditor{
+        JDateChooser dc;
+        public DateEditor(){
+            dc=new JDateChooser();
+            dc.setDateFormatString(dateFormat);
+        }
+        @Override
+        public Object getCellEditorValue(){
+            return dc.getDate();
+        }
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean bln, int i, int i1){
+            dc.setDate((Date)value);
+            return dc;
+        }     
     }
     
     private final Table dbTable;
     private final String[] names;
     private final DataType[] types;
-    
+    private final String dateFormat = "dd MMM yyyy";
     private JTable table;
     private DefaultTableModel dtm;
-    private TableCellListener tcl; 
-     
+    private TableCellListener tcl;
+    private JPopupMenu cellPopup, headerPopup;
+    
     public DataTable(Database db, String t) throws IOException{
-        super();
+        super(new BorderLayout(20, 20));
         dbTable=db.getTable(t);
         int k=0, n=dbTable.getColumnCount();
         names=new String[n];
@@ -170,21 +197,79 @@ public class DataTable extends JPanel{
         initcomp();
     }
     private void initcomp() throws IOException{
-        dtm=new DefaultTableModel(getRowData(), names);
+        cellPopup=new JPopupMenu();
+        cellPopup.add(new MyMenuItem("Eliminar registro", null, "deleteRow", this));
+        headerPopup=new JPopupMenu();
+        headerPopup.add(new MyMenuItem("Ocultar columna", null, "hideColumn", this));
+        headerPopup.add(new MyMenuItem("Mostrar columnas ocultas", null, "unhideColumns", this));
+        
+        dtm=new DefaultTableModel(getRowData(), names){
+            @Override
+            public Class getColumnClass(int col) {
+                switch(types[col]){
+                    case BOOLEAN:
+                        return Boolean.class;
+                    case INT:
+                        return Integer.class;
+                    case LONG:
+                        return Long.class;
+                    case FLOAT:
+                        return Float.class;
+                    case DOUBLE:
+                        return Double.class;
+                    case MONEY:
+                        return Currency.class;
+                    case SHORT_DATE_TIME:
+                        return Date.class;
+                    case TEXT:
+                        return String.class;
+                    default:
+                        return null;
+                }
+            }
+        };
         table=new JTable(dtm){{
             getTableHeader().addMouseListener(new MouseAdapter(){
                 @Override
-                public void mouseClicked(MouseEvent mouseEvent) {
-                    int index=convertColumnIndexToModel(columnAtPoint(mouseEvent.getPoint()));
-                    if(index>=0){
-                        sortBy(index);
+                public void mouseClicked(MouseEvent me) {
+                    int index=convertColumnIndexToModel(columnAtPoint(me.getPoint()));
+                    if(index>=0 && me.getButton()==MouseEvent.BUTTON3){
+                        showHeaderPopup(me);
                     }
                 };
             });
         }};
+        table.addMouseListener(new MouseAdapter(){
+            @Override
+            public void mouseReleased(MouseEvent me) {
+                int r=table.rowAtPoint(me.getPoint());
+                if(r>=0 && r<table.getRowCount()){
+                    table.setRowSelectionInterval(r, r);
+                }else{
+                    table.clearSelection();
+                }
+                int rowindex=table.getSelectedRow();
+                if(rowindex<0){
+                    return;
+                }if(me.isPopupTrigger() && me.getComponent() instanceof JTable){
+                    showCellPopup(me);
+                }
+            }
+        });
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.setPreferredScrollableViewportSize(Toolkit.getDefaultToolkit().getScreenSize());
         table.setFillsViewportHeight(true);
-        add(new JScrollPane(table), "Center");
-        add(new InputPanel(), "East");
+        table.setRowSorter(new TableRowSorter(dtm));
+        table.setDefaultEditor(Date.class, new DateEditor());
+        table.setDefaultRenderer(Date.class, new DefaultTableCellRenderer(){
+            SimpleDateFormat f = new SimpleDateFormat(dateFormat);
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, 
+                    boolean isSelected, boolean hasFocus, int row, int column){
+                return super.getTableCellRendererComponent(table, f.format(value), isSelected,
+                        hasFocus, row, column);
+            }
+        });
         
         tcl=new TableCellListener(table, new AbstractAction(){
             @Override
@@ -194,23 +279,46 @@ public class DataTable extends JPanel{
                 try{
                     Cursor cursor=CursorBuilder.createCursor(dbTable);
                     if(cursor.findFirstRow(Collections.singletonMap(columnName, tcl.getOldValue()))){
-                        cursor.setCurrentRowValue(dbTable.getColumn(columnName), tcl.getNewValue());
+                        cursor.setCurrentRowValue(dbTable.getColumn(columnName), parseType(tcl.getNewValue().toString(), types[tcl.getColumn()]));
                     }
                 }catch(IOException e){
-                    System.err.println(ae);
+                    e.printStackTrace();
                 }
             }
         });
+        
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        add(new JScrollPane(table, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, 
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED), "Center");
+        add(new InputPanel(), "East");
     }
     
-    public void sortBy(int col){
+    public void showCellPopup(MouseEvent me){
+        cellPopup.show(me.getComponent(), me.getX(), me.getY());
+    }
+    public void showHeaderPopup(MouseEvent me){
+        headerPopup.show(me.getComponent(), me.getX(), me.getY());
+    }
+    
+    public void deleteRow(){
+        int row=table.getSelectedRow();
+        dtm.removeRow(row);
+    }
+    public void hideColumn(){
         
+    }
+    public void unhideColumns(){
+        
+    }
+    
+    public void refresh()throws IOException{
+        dtm.setDataVector(getRowData(), names);
     }
     public void addRow(Object... rowData)throws IOException{
         dbTable.addRow(rowData);
         dtm.addRow(rowData);
     }
-    public void addFromCsv(File csvFileToRead)throws SQLException{
+    public void addFromCsv(File csvFileToRead){
         BufferedReader br=null;
         String line;
         try{
@@ -219,27 +327,27 @@ public class DataTable extends JPanel{
             while((line=br.readLine())!=null){
                 String[] cell=line.split(",");
                 for(int i=0; i<types.length; i++){
-                    rowData[i]=parseAs(cell[i], types[i]);
+                    rowData[i]=parseType(cell[i], types[i]);
                 }
                 addRow(rowData);
             }
-        }catch(FileNotFoundException e){
-            System.err.println(e);
         }catch(IOException e){
-            System.err.println(e);
+            e.printStackTrace();
         }finally{
             if(br!=null){
                 try{
                     br.close();
                 }catch(IOException e){
-                    System.err.println(e);
+                    e.printStackTrace();
                 }
             }
         }
     }
     
-    public Object parseAs(String s, DataType type){
+    public Object parseType(String s, DataType type){
         switch(type){
+            case BOOLEAN:
+                return Boolean.parseBoolean(s);
             case INT:
                 return Integer.parseInt(s);
             case FLOAT:
@@ -247,7 +355,7 @@ public class DataTable extends JPanel{
             case DOUBLE:
                 return Double.parseDouble(s);
             case SHORT_DATE_TIME:
-                return Date.valueOf(s);
+                return Date.parse(s);
             default:
                 return s;
         }
