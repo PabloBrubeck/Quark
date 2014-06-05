@@ -24,6 +24,7 @@ public class MainApplication extends JFrame{
     private Database db;
     private JFileChooser fc;
     private JTabbedPane tp;
+    private ChangeListener cl;
     private JLabel infoLabel, pathLabel;
     
     private boolean isFullScreen=false;
@@ -76,15 +77,14 @@ public class MainApplication extends JFrame{
         });
         
         //Initialize database
-        String path="DBQUARK.mdb";
+        String path="new.mdb";
         try{
             dbFile=new File(path);
             db=DatabaseBuilder.open(dbFile);
             fc.setCurrentDirectory(dbFile);
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
-            fc.showOpenDialog(this);
-            dbFile=fc.getSelectedFile();
+            openFile();
         }
         
         //Initialize statusPanel
@@ -101,6 +101,14 @@ public class MainApplication extends JFrame{
         updatePath();
         
         //Initialize tabbedPane
+        tp=new JTabbedPane();
+        cl=new ChangeListener(){
+            @Override
+            public void stateChanged(ChangeEvent ce){
+                updateInfo();
+            }
+        };
+        tp.addChangeListener(cl);
         setTabbedPane();
         
         
@@ -111,13 +119,6 @@ public class MainApplication extends JFrame{
         contentPane.add(status, "South");
     }
     private void setTabbedPane(){
-        tp=new JTabbedPane();
-        tp.addChangeListener(new ChangeListener(){
-            @Override
-            public void stateChanged(ChangeEvent ce){
-                updateInfo();
-            }
-        });
         try{
             for(String s: db.getTableNames()){
                 tp.addTab(s, new DataTable(db, s));
@@ -135,8 +136,8 @@ public class MainApplication extends JFrame{
         pathLabel.setText(dbFile.getAbsolutePath());
     }
     public void updateInfo() {
-        String title= tp.getTitleAt(tp.getSelectedIndex());
         try{
+            String title= tp.getTitleAt(tp.getSelectedIndex());
             int i=db.getTable(title).getRowCount();
             infoLabel.setText(title+" "+i+" registros");
         }catch(IOException e){
@@ -150,14 +151,18 @@ public class MainApplication extends JFrame{
         fc.showOpenDialog(this);
         dbFile=fc.getSelectedFile();
         try{
+            db.close();
             db=DatabaseBuilder.open(dbFile);
+            tp.removeChangeListener(cl);
+            tp.removeAll();
+            for(String s: db.getTableNames()){
+                tp.addTab(s, new DataTable(db, s));
+            }
+            tp.addChangeListener(cl);
+            updatePath();
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
-        updatePath();
-        setTabbedPane();
-        revalidate();
-        repaint();;
     }
     public void saveFile(){
         fc.showSaveDialog(this);

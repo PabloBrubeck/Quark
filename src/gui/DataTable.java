@@ -167,7 +167,7 @@ public class DataTable extends JPanel{
         }     
     }
     
-    private final Table dbTable;
+    private Table dbTable;
     private final String[] names;
     private final DataType[] types;
     private final String dateFormat = "dd MMM yyyy";
@@ -179,9 +179,14 @@ public class DataTable extends JPanel{
     private ArrayList<TableColumn> hiddenColumns; 
     private int indexCol;
     
-    public DataTable(Database db, String t) throws IOException{
+    public DataTable(Database db, String t){
         super(new BorderLayout(20, 20));
-        dbTable=db.getTable(t);
+        dbTable=null;
+        try {
+            dbTable=db.getTable(t);
+        } catch (IOException ex) {
+            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+        }
         int k=0, n=dbTable.getColumnCount();
         names=new String[n];
         types=new DataType[n];
@@ -192,7 +197,7 @@ public class DataTable extends JPanel{
         }
         initcomp();
     }
-    private void initcomp() throws IOException{
+    private void initcomp(){
         hiddenColumns=new ArrayList();
         
         cellPopup=new JPopupMenu();
@@ -200,28 +205,31 @@ public class DataTable extends JPanel{
         headerPopup=new JPopupMenu();
         headerPopup.add(new MyMenuItem("Ocultar columna", null, "hideColumn", this));
         headerPopup.add(new MyMenuItem("Mostrar columnas ocultas", null, "unhideColumns", this));
-        
-        dtm=new DefaultTableModel(getRowData(), names){
-            @Override
-            public Class getColumnClass(int col) {
-                switch(types[col]){
-                    case BOOLEAN:
-                        return Boolean.class;
-                    case INT:
-                        return Integer.class;
-                    case LONG:
-                        return Long.class;
-                    case FLOAT:
-                        return Float.class;
-                    case DOUBLE:
-                        return Double.class;
-                    case SHORT_DATE_TIME:
-                        return Date.class;
-                     default:
-                        return String.class;
+        try {
+            dtm=new DefaultTableModel(getRowData(), names){
+                @Override
+                public Class getColumnClass(int col) {
+                    switch(types[col]){
+                        case BOOLEAN:
+                            return Boolean.class;
+                        case INT:
+                            return Integer.class;
+                        case LONG:
+                            return Long.class;
+                        case FLOAT:
+                            return Float.class;
+                        case DOUBLE:
+                            return Double.class;
+                        case SHORT_DATE_TIME:
+                            return Date.class;
+                        default:
+                            return String.class;
+                    }
                 }
-            }
-        };
+            };
+        } catch (IOException ex) {
+            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+        }
         table=new JTable(dtm){
             {
                 setFillsViewportHeight(true);
