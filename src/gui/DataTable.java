@@ -3,7 +3,7 @@ package gui;
 import com.healthmarketscience.jackcess.*;
 import com.healthmarketscience.jackcess.Cursor;
 import com.toedter.calendar.JDateChooser;
-import gui.MyMenuBar.*;
+import gui.MyComponent.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
@@ -58,7 +58,7 @@ public class DataTable extends JPanel{
             }
             @Override
             public Date getData(){
-                return new Date(dc.getDate().getTime());
+                return dc.getDate();
             }
         }
         
@@ -107,14 +107,6 @@ public class DataTable extends JPanel{
                             }
                         };
                         break;
-                    case MONEY:
-                        fields[k]=new InputField(col.getName()){
-                            @Override
-                            public Currency getData(){
-                                return Currency.getInstance(getText());
-                            }
-                        };
-                        break;
                     case SHORT_DATE_TIME:
                         fields[k]=new DateInputField(col.getName());
                         break;
@@ -125,10 +117,10 @@ public class DataTable extends JPanel{
                     add(fields[k]);
                     k++;
                 }
-            recordBtn=new JButton(new MyAction("Capturar", null, "record", this));
+            recordBtn=new JButton(new MyAction("Capturar", null, new Caller("record", this)));
             add(recordBtn);
             
-            importBtn=new JButton(new MyAction("Importar", null, "importFromCsv", this));
+            importBtn=new JButton(new MyAction("Importar", null, new Caller("importFromCsv", this)));
             add(importBtn);
         }
         public void record(){
@@ -184,6 +176,7 @@ public class DataTable extends JPanel{
     private DefaultTableModel dtm;
     private TableCellListener tcl;
     private JPopupMenu cellPopup, headerPopup;
+    private ArrayList<TableColumn> hiddenColumns; 
     private int indexCol;
     
     public DataTable(Database db, String t) throws IOException{
@@ -200,6 +193,8 @@ public class DataTable extends JPanel{
         initcomp();
     }
     private void initcomp() throws IOException{
+        hiddenColumns=new ArrayList();
+        
         cellPopup=new JPopupMenu();
         cellPopup.add(new MyMenuItem("Eliminar registro", null, "deleteRow", this));
         headerPopup=new JPopupMenu();
@@ -308,10 +303,16 @@ public class DataTable extends JPanel{
     }
     public void hideColumn(){
         TableColumnModel tcm = table.getColumnModel();
-        tcm.removeColumn(tcm.getColumn(indexCol));
+        TableColumn column=tcm.getColumn(indexCol);
+        hiddenColumns.add(column);
+        tcm.removeColumn(column);
     }
     public void unhideColumns(){
-        
+        TableColumnModel tcm = table.getColumnModel();
+        for(TableColumn column: hiddenColumns){
+            tcm.addColumn(column);
+        }
+        hiddenColumns.clear();
     }
     
     public void refresh()throws IOException{
@@ -377,4 +378,5 @@ public class DataTable extends JPanel{
         }
         return rowData;
     }
+    
 }

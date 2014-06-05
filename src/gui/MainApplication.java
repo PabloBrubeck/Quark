@@ -1,23 +1,30 @@
 package gui;
 
-import gui.MyMenuBar.*;
+import gui.MyComponent.*;
 import com.healthmarketscience.jackcess.*;
 import com.sun.java.swing.plaf.windows.WindowsLookAndFeel;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.logging.*;
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileFilter;
 
 public class MainApplication extends JFrame{
     private final String[] menus={"File", "Edit", "View", "Tools", "Help"};
-
+    private final SimpleDateFormat sdf=new SimpleDateFormat("HH:mm:ss EEE, dd MMM yyyy");
+    
     private File dbFile;
     private Database db;
     private JFileChooser fc;
     private JTabbedPane tp;
+    private JLabel infoLabel, pathLabel;
     
     private boolean isFullScreen=false;
     
@@ -69,7 +76,7 @@ public class MainApplication extends JFrame{
         });
         
         //Initialize database
-        String path="new.mdb";
+        String path="DBQUARK.mdb";
         try{
             dbFile=new File(path);
             db=DatabaseBuilder.open(dbFile);
@@ -80,22 +87,22 @@ public class MainApplication extends JFrame{
             dbFile=fc.getSelectedFile();
         }
         
-        //Initialize tabbedPane
-        tp=new JTabbedPane();
-        try{
-            for(String s: db.getTableNames()){
-                tp.addTab(s, new DataTable(db, s));
-            }
-        }catch(IOException e){
-            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
-        }
-        
         //Initialize statusPanel
-        JPanel status=new JPanel(new GridLayout(1,3));
-        status.setBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED));
-        status.add(new Label("Contacto"));
-        status.add(new Label("Ayuda"));
-        status.add(new Label("Cerrar sesion"));
+        infoLabel=new JLabel();
+        pathLabel=new JLabel();
+        JPanel status=new JPanel(new GridLayout(1,3)){
+            {
+                setBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED));
+                add(pathLabel);
+                add(infoLabel);
+                add(new RealTimeLabel(1000, new Caller("getTime", MainApplication.this)));
+            }
+        };
+        updatePath();
+        
+        //Initialize tabbedPane
+        setTabbedPane();
+        
         
         //Add components to frame
         Container contentPane=getContentPane();
@@ -103,6 +110,40 @@ public class MainApplication extends JFrame{
         contentPane.add(tp, "Center");
         contentPane.add(status, "South");
     }
+    private void setTabbedPane(){
+        tp=new JTabbedPane();
+        tp.addChangeListener(new ChangeListener(){
+            @Override
+            public void stateChanged(ChangeEvent ce){
+                updateInfo();
+            }
+        });
+        try{
+            for(String s: db.getTableNames()){
+                tp.addTab(s, new DataTable(db, s));
+            }
+        }catch(IOException e){
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+        }
+    }
+    
+    //Status bar
+    public String getTime(){
+        return sdf.format(new Date());
+    }
+    public void updatePath(){
+        pathLabel.setText(dbFile.getAbsolutePath());
+    }
+    public void updateInfo() {
+        String title= tp.getTitleAt(tp.getSelectedIndex());
+        try{
+            int i=db.getTable(title).getRowCount();
+            infoLabel.setText(title+" "+i+" registros");
+        }catch(IOException e){
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+        }
+    }
+    
     
     //File menu
     public void openFile(){
@@ -113,10 +154,14 @@ public class MainApplication extends JFrame{
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
+        updatePath();
+        setTabbedPane();
+        revalidate();
+        repaint();;
     }
     public void saveFile(){
         fc.showSaveDialog(this);
-        String dir=fc.getSelectedFile().getAbsolutePath();
+        updatePath();
     }
     public void exit(){
         try{
