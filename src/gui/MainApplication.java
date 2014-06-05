@@ -10,7 +10,6 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.logging.*;
 import javax.swing.*;
-import javax.swing.Timer;
 import javax.swing.border.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -77,7 +76,7 @@ public class MainApplication extends JFrame{
         });
         
         //Initialize database
-        String path="new.mdb";
+        String path="DBQUARK.mdb";
         try{
             dbFile=new File(path);
             db=DatabaseBuilder.open(dbFile);
@@ -102,23 +101,6 @@ public class MainApplication extends JFrame{
         
         //Initialize tabbedPane
         tp=new JTabbedPane();
-        cl=new ChangeListener(){
-            @Override
-            public void stateChanged(ChangeEvent ce){
-                updateInfo();
-            }
-        };
-        tp.addChangeListener(cl);
-        setTabbedPane();
-        
-        
-        //Add components to frame
-        Container contentPane=getContentPane();
-        contentPane.setLayout(new BorderLayout());
-        contentPane.add(tp, "Center");
-        contentPane.add(status, "South");
-    }
-    private void setTabbedPane(){
         try{
             for(String s: db.getTableNames()){
                 tp.addTab(s, new DataTable(db, s));
@@ -126,6 +108,18 @@ public class MainApplication extends JFrame{
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
+        tp.addChangeListener(cl=new ChangeListener(){
+            @Override
+            public void stateChanged(ChangeEvent ce){
+                updateInfo();
+            }
+        });
+        
+        //Add components to frame
+        Container contentPane=getContentPane();
+        contentPane.setLayout(new BorderLayout());
+        contentPane.add(tp, "Center");
+        contentPane.add(status, "South");
     }
     
     //Status bar
@@ -135,16 +129,15 @@ public class MainApplication extends JFrame{
     public void updatePath(){
         pathLabel.setText(dbFile.getAbsolutePath());
     }
-    public void updateInfo() {
+    public void updateInfo(){
         try{
-            String title= tp.getTitleAt(tp.getSelectedIndex());
+            String title = tp.getTitleAt(tp.getSelectedIndex());
             int i=db.getTable(title).getRowCount();
             infoLabel.setText(title+" "+i+" registros");
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
     }
-    
     
     //File menu
     public void openFile(){

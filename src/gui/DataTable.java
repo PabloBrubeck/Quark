@@ -1,6 +1,7 @@
 package gui;
 
 import com.healthmarketscience.jackcess.*;
+import com.healthmarketscience.jackcess.util.*;
 import com.healthmarketscience.jackcess.Cursor;
 import com.toedter.calendar.JDateChooser;
 import gui.MyComponent.*;
@@ -12,7 +13,7 @@ import java.util.*;
 import java.util.logging.*;
 import javax.swing.*;
 import javax.swing.border.*;
-import javax.swing.event.*;
+import javax.swing.event.CellEditorListener;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.table.*;
 
@@ -67,7 +68,7 @@ public class DataTable extends JPanel{
         private JButton importBtn;
         
         public InputPanel(){
-            super(new GridLayout(0, 1, 0, 20));
+            super(new GridLayout(0, 1, 0, 15));
             initcomp();
         }
         private void initcomp(){
@@ -166,24 +167,52 @@ public class DataTable extends JPanel{
             return dc;
         }     
     }
+    private class LinkEditor extends AbstractCellEditor implements TableCellEditor{
+        private JComboBox<Row> cb;
+        private int memory=-1;
+        public LinkEditor(){
+            cb=new JComboBox();
+        }
+        @Override
+        public Object getCellEditorValue(){
+            return cb.getSelectedIndex()+1;
+        }
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean bln, int row, int column){
+            if(memory!=column){
+                cb=new JComboBox();
+                Table from=relatedColumns.get(names[column]);
+                for(Row r: from){
+                    cb.addItem(r);
+                }
+            }
+            memory=column;
+            return cb;
+        }     
+    }
+    private class Link{
+        
+    }
     
-    private Table dbTable;
     private final String[] names;
     private final DataType[] types;
-    private final String dateFormat = "dd MMM yyyy";
+    private final String dateFormat="dd MMM yyyy";
     
+    private Table dbTable;
+    private Map<String, Table> relatedColumns;
     private JTable table;
     private DefaultTableModel dtm;
     private TableCellListener tcl;
     private JPopupMenu cellPopup, headerPopup;
-    private ArrayList<TableColumn> hiddenColumns; 
+    private ArrayList<TableColumn> hiddenColumns;
     private int indexCol;
     
-    public DataTable(Database db, String t){
+    public DataTable(Database db, String t) {
         super(new BorderLayout(20, 20));
         dbTable=null;
         try {
             dbTable=db.getTable(t);
+            findRelationships(db);
         } catch (IOException ex) {
             Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -199,7 +228,6 @@ public class DataTable extends JPanel{
     }
     private void initcomp(){
         hiddenColumns=new ArrayList();
-        
         cellPopup=new JPopupMenu();
         cellPopup.add(new MyMenuItem("Eliminar registro", null, "deleteRow", this));
         headerPopup=new JPopupMenu();
@@ -208,7 +236,11 @@ public class DataTable extends JPanel{
         try {
             dtm=new DefaultTableModel(getRowData(), names){
                 @Override
-                public Class getColumnClass(int col) {
+                public Class getColumnClass(int col){
+                    String name=table.getColumnName(col);
+                    if(relatedColumns.containsKey(name)){
+                        return Link.class;
+                    }
                     switch(types[col]){
                         case BOOLEAN:
                             return Boolean.class;
@@ -248,7 +280,7 @@ public class DataTable extends JPanel{
                         if(rowindex<0){
                             return;
                         }if(me.isPopupTrigger() && me.getComponent() instanceof JTable){
-                            showCellPopup(me);
+                            cellPopup.show(me.getComponent(), me.getX(), me.getY());
                         }
                     }
                 });
@@ -257,7 +289,7 @@ public class DataTable extends JPanel{
                     public void mouseReleased(MouseEvent me) {
                         indexCol=columnAtPoint(me.getPoint());
                         if(indexCol>=0 && me.getButton()==MouseEvent.BUTTON3){
-                            showHeaderPopup(me);
+                            headerPopup.show(me.getComponent(), me.getX(), me.getY());
                         }
                     };
                 });
@@ -265,11 +297,27 @@ public class DataTable extends JPanel{
         };
         
         table.setDefaultEditor(Date.class, new DateEditor());
+        table.setDefaultEditor(Link.class, new LinkEditor());
         table.setDefaultRenderer(Date.class, new DefaultTableCellRenderer(){
             SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
                 return super.getTableCellRendererComponent(table, sdf.format(value), isSelected, hasFocus, row, column);
+            }
+        });
+        table.setDefaultRenderer(Link.class, new DefaultTableCellRenderer(){
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
+                String name=table.getColumnName(column);
+                Table from=relatedColumns.get(name);
+                try{
+                    Cursor cursor=CursorBuilder.createCursor(from);
+                    cursor.findFirstRow(Collections.singletonMap(name, value));
+                    value=cursor.getCurrentRow().toString();
+                }catch(IOException ex) {
+                    Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             }
         });
         
@@ -294,11 +342,20 @@ public class DataTable extends JPanel{
                 JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED), "Center");
         add(new InputPanel(), "East");
     }
+    private void findRelationships(Database db) throws IOException{
+        relatedColumns=new HashMap();
+        for(Relationship rel: db.getRelationships(dbTable)){
+            Table from=rel.getFromTable();
+            if(!from.equals(dbTable)){
+                Joiner join=Joiner.create(from, dbTable);
+                for(Index.Column c: join.getColumns()){
+                    relatedColumns.put(c.getName(), from);
+                }
+            }
+        }
+    }
     
     //Cell popup
-    public void showCellPopup(MouseEvent me){
-        cellPopup.show(me.getComponent(), me.getX(), me.getY());
-    }
     public void deleteRow(){
         int view=table.getSelectedRow();
         int model=table.convertRowIndexToModel(view);
@@ -306,9 +363,6 @@ public class DataTable extends JPanel{
     }
     
     //Header popup
-    public void showHeaderPopup(MouseEvent me){
-        headerPopup.show(me.getComponent(), me.getX(), me.getY());
-    }
     public void hideColumn(){
         TableColumnModel tcm = table.getColumnModel();
         TableColumn column=tcm.getColumn(indexCol);
@@ -386,5 +440,4 @@ public class DataTable extends JPanel{
         }
         return rowData;
     }
-    
 }
