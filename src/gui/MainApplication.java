@@ -66,11 +66,11 @@ public class MainApplication extends JFrame{
         fc=new JFileChooser();
         fc.setFileFilter(new FileFilter(){
             @Override
-            public boolean accept(File file) {
+            public boolean accept(File file){
                 return file.isDirectory() || file.getName().endsWith(".mdb");
             }
             @Override
-            public String getDescription() {
+            public String getDescription(){
                 return "Microsoft Access Database";
             }
         });

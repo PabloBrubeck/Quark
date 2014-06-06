@@ -13,7 +13,6 @@ import java.util.*;
 import java.util.logging.*;
 import javax.swing.*;
 import javax.swing.border.*;
-import javax.swing.event.CellEditorListener;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.table.*;
 
@@ -168,8 +167,7 @@ public class DataTable extends JPanel{
         }     
     }
     private class LinkEditor extends AbstractCellEditor implements TableCellEditor{
-        private JComboBox<Row> cb;
-        private int memory=-1;
+        private JComboBox<String> cb;
         public LinkEditor(){
             cb=new JComboBox();
         }
@@ -179,14 +177,11 @@ public class DataTable extends JPanel{
         }
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean bln, int row, int column){
-            if(memory!=column){
-                cb=new JComboBox();
-                Table from=relatedColumns.get(names[column]);
-                for(Row r: from){
-                    cb.addItem(r);
-                }
+            cb=new JComboBox();
+            Table from=relatedColumns.get(names[column]);
+            for(Row r: from){
+                cb.addItem(rowToString(r));
             }
-            memory=column;
             return cb;
         }     
     }
@@ -201,8 +196,10 @@ public class DataTable extends JPanel{
     private Table dbTable;
     private Map<String, Table> relatedColumns;
     private JTable table;
-    private DefaultTableModel dtm;
-    private TableCellListener tcl;
+    private JTextField searchBox;
+    private JButton searchBtn;
+    private DefaultTableModel model;
+    private TableRowSorter sorter;
     private JPopupMenu cellPopup, headerPopup;
     private ArrayList<TableColumn> hiddenColumns;
     private int indexCol;
@@ -234,7 +231,7 @@ public class DataTable extends JPanel{
         headerPopup.add(new MyMenuItem("Ocultar columna", null, "hideColumn", this));
         headerPopup.add(new MyMenuItem("Mostrar columnas ocultas", null, "unhideColumns", this));
         try {
-            dtm=new DefaultTableModel(getRowData(), names){
+            model=new DefaultTableModel(getRowData(), names){
                 @Override
                 public Class getColumnClass(int col){
                     String name=table.getColumnName(col);
@@ -262,10 +259,11 @@ public class DataTable extends JPanel{
         } catch (IOException ex) {
             Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
         }
-        table=new JTable(dtm){
+        sorter=new TableRowSorter(model);
+        table=new JTable(model){
             {
                 setFillsViewportHeight(true);
-                setRowSorter(new TableRowSorter(dtm));
+                setRowSorter(sorter);
                 setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
                 addMouseListener(new MouseAdapter(){
                     @Override
@@ -293,35 +291,34 @@ public class DataTable extends JPanel{
                         }
                     };
                 });
+                setDefaultEditor(Date.class, new DateEditor());
+                setDefaultEditor(Link.class, new LinkEditor());
+                setDefaultRenderer(Date.class, new DefaultTableCellRenderer(){
+                    SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
+                    @Override
+                    public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
+                        return super.getTableCellRendererComponent(table, sdf.format(value), isSelected, hasFocus, row, column);
+                    }
+                });
+                setDefaultRenderer(Link.class, new DefaultTableCellRenderer(){
+                    @Override
+                    public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
+                        String name=table.getColumnName(column);
+                        Table from=relatedColumns.get(name);
+                        try{
+                            Cursor cursor=CursorBuilder.createCursor(from);
+                            cursor.findFirstRow(Collections.singletonMap(name, value));
+                            value=rowToString(cursor.getCurrentRow());
+                        }catch(IOException ex) {
+                            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                        return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                    }
+                });
             }
         };
         
-        table.setDefaultEditor(Date.class, new DateEditor());
-        table.setDefaultEditor(Link.class, new LinkEditor());
-        table.setDefaultRenderer(Date.class, new DefaultTableCellRenderer(){
-            SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
-                return super.getTableCellRendererComponent(table, sdf.format(value), isSelected, hasFocus, row, column);
-            }
-        });
-        table.setDefaultRenderer(Link.class, new DefaultTableCellRenderer(){
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
-                String name=table.getColumnName(column);
-                Table from=relatedColumns.get(name);
-                try{
-                    Cursor cursor=CursorBuilder.createCursor(from);
-                    cursor.findFirstRow(Collections.singletonMap(name, value));
-                    value=cursor.getCurrentRow().toString();
-                }catch(IOException ex) {
-                    Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
-                }
-                return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            }
-        });
-        
-        tcl=new TableCellListener(table, new AbstractAction(){
+        new TableCellListener(table, new AbstractAction(){
             @Override
             public void actionPerformed(ActionEvent ae){
                 TableCellListener tcl=(TableCellListener)ae.getSource();
@@ -337,10 +334,37 @@ public class DataTable extends JPanel{
             }
         });
         
+        searchBox=new JTextField(200);
+        searchBtn=new JButton(new AbstractAction("Buscar"){
+            @Override
+            public void actionPerformed(ActionEvent ae){
+                javax.swing.RowFilter<DefaultTableModel, Object> rf = null;
+                //If current expression doesn't parse, don't update.
+                try {
+                    rf = javax.swing.RowFilter.regexFilter(searchBox.getText());
+                } catch (java.util.regex.PatternSyntaxException e) {
+                    return;
+                }
+                sorter.setRowFilter(rf);
+            }       
+        });
+        
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        add(new JScrollPane(table, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, 
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED), "Center");
         add(new InputPanel(), "East");
+        add(new JPanel(new BorderLayout(10, 10)){
+            {
+                add(new JScrollPane(table, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                        JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED), "Center");
+                add(new JPanel(new BorderLayout(10, 10)){
+                    {
+                        add(searchBox, "Center");
+                        add(searchBtn, "East");
+                    }
+                }, "South");
+                
+            }
+        }, "Center");
+        
     }
     private void findRelationships(Database db) throws IOException{
         relatedColumns=new HashMap();
@@ -354,12 +378,18 @@ public class DataTable extends JPanel{
             }
         }
     }
+    private String rowToString(Row row){
+        String s="";
+        for(Map.Entry entry: row.entrySet()){
+            s+=entry+" | ";
+        }
+        return s.substring(0, s.length()-3);
+    }
     
     //Cell popup
     public void deleteRow(){
         int view=table.getSelectedRow();
-        int model=table.convertRowIndexToModel(view);
-        dtm.removeRow(model);
+        model.removeRow(table.convertRowIndexToModel(view));
     }
     
     //Header popup
@@ -378,11 +408,11 @@ public class DataTable extends JPanel{
     }
     
     public void refresh()throws IOException{
-        dtm.setDataVector(getRowData(), names);
+        model.setDataVector(getRowData(), names);
     }
     public void addRow(Object... rowData)throws IOException{
         dbTable.addRow(rowData);
-        dtm.addRow(rowData);
+        model.addRow(rowData);
     }
     public void addFromCsv(File csvFileToRead){
         BufferedReader br=null;
