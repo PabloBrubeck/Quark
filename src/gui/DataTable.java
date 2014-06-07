@@ -301,19 +301,22 @@ public class DataTable extends JPanel{
         };
         model.addTableModelListener(new TableModelListener(){
             @Override
-            public void tableChanged(TableModelEvent tme) {
-                try{
-                    int row=tme.getFirstRow();
-                    int col=tme.getColumn();
-                    String columnName=model.getColumnName(col);
-                    //Assumes that the table has a primary key on the first column
-                    Cursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
-                    if(cursor.findFirstRow(Collections.singletonMap(names[0], model.getValueAt(row, 0)))){
-                        cursor.setCurrentRowValue(dbTable.getColumn(columnName), model.getValueAt(row, col));
+            public void tableChanged(TableModelEvent tme){
+                int row=tme.getFirstRow();
+                int col=tme.getColumn();
+                if(tme.getType()==TableModelEvent.UPDATE){
+                    try{
+                        String columnName=model.getColumnName(col);
+                        //Assumes that the table has a primary key on the first column
+                        Cursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
+                        if(cursor.findFirstRow(Collections.singletonMap(names[0], model.getValueAt(row, 0)))){
+                            cursor.setCurrentRowValue(dbTable.getColumn(columnName), model.getValueAt(row, col));
+                        }
+                    }catch(IOException | IllegalArgumentException | ArrayIndexOutOfBoundsException e){
+                        Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
                     }
-                }catch(IOException | IllegalArgumentException | ArrayIndexOutOfBoundsException e){
-                    Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
                 }
+                calculate(row, col);
                 updateCombo();
             }
         });
@@ -405,18 +408,23 @@ public class DataTable extends JPanel{
             }
         }
     }
-    private String rowToString(Row row){
-        String s="";
-        for(Map.Entry entry: row.entrySet()){
-            s+=entry+" | ";
-        }
-        return s.substring(0, s.length()-3);
-    }
     
     //Cell popup
     public void deleteRow(){
-        int view=table.getSelectedRow();
-        model.removeRow(table.convertRowIndexToModel(view));
+        int i=JOptionPane.showConfirmDialog(null, "¿Está seguro de que quiere borrar este registro?");
+        if(i!=JOptionPane.YES_OPTION){
+            return;
+        }
+        int row=table.convertRowIndexToModel(table.getSelectedRow());
+        try{
+            Cursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
+            if(cursor.findFirstRow(Collections.singletonMap(names[0], model.getValueAt(row, 0)))){
+                cursor.deleteCurrentRow();
+                model.removeRow(row);
+            }
+        }catch(IOException | IllegalArgumentException | ArrayIndexOutOfBoundsException e){
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+        }
     }
     
     //Header popup
@@ -502,5 +510,14 @@ public class DataTable extends JPanel{
             i++;
         }
         return rowData;
+    }
+    public String getColumnName(int i){
+        return names[i];
+    }
+    public String rowToString(Row row){
+        return row.toString();
+    }
+    public void calculate(int row, int col){
+        
     }
 }

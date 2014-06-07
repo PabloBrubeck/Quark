@@ -108,13 +108,7 @@ public class SimpleDBMS extends JFrame{
         
         //Initialize tabbedPane
         tp=new JTabbedPane();
-        try{
-            for(String s: db.getTableNames()){
-                tp.addTab(s, new DataTable(db, s));
-            }
-        }catch(IOException e){
-            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
-        }
+        openDataTables(db);
         tp.addChangeListener(cl=new ChangeListener(){
             @Override
             public void stateChanged(ChangeEvent ce){
@@ -127,6 +121,19 @@ public class SimpleDBMS extends JFrame{
         contentPane.setLayout(new BorderLayout());
         contentPane.add(tp, "Center");
         contentPane.add(status, "South");
+    }
+    
+    public void openDataTables(Database dataBase){
+        try{
+            for(String s: dataBase.getTableNames()){
+                addDataTable(s, new DataTable(dataBase, s));
+            }
+        }catch(IOException e){
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+        }
+    }
+    public void addDataTable(String s, DataTable dt){
+        tp.addTab(s, dt);
     }
     
     //Status bar
@@ -155,9 +162,7 @@ public class SimpleDBMS extends JFrame{
             db=DatabaseBuilder.open(dbFile);
             tp.removeChangeListener(cl);
             tp.removeAll();
-            for(String s: db.getTableNames()){
-                tp.addTab(s, new DataTable(db, s));
-            }
+            openDataTables(db);
             tp.addChangeListener(cl);
             updatePath();
         }catch(IOException e){
@@ -222,7 +227,7 @@ public class SimpleDBMS extends JFrame{
         }
     }
     public void about(){
-        JOptionPane.showMessageDialog(this, 
+        JOptionPane.showMessageDialog(null, 
                 "<html>2014 Quark Industries.<br>" 
                 + "Designed with Java TM.<br>"
                 + "License number: XXXX-XXXX-XXXX-XXXX.</html>",
