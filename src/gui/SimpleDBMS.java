@@ -55,7 +55,8 @@ public class SimpleDBMS extends JFrame{
                 new MyMenuItem("Copy", "control C", "copy", this), 
                 new MyMenuItem("Paste", "control V", "paste", this),
                 new MyMenuItem("Delete", "DELETE", "delete", this)},
-            {new MyMenuItem("Full Screen", "F11", "fullScreen", this)},
+            {new MyMenuItem("Search", "control F", "search", this),
+                new MyMenuItem("Full Screen", "F11", "fullScreen", this)},
             {new MyMenuItem("Options", null, "options", this)},
             {new MyMenuItem("Help Contents", "F1", "helpContents", this), 
                 new MyMenuItem("About", null, "about", this)}
@@ -201,6 +202,12 @@ public class SimpleDBMS extends JFrame{
         
     }
     //View menu
+    public void search(){
+        Component c=tp.getSelectedComponent();
+        if(c instanceof DataTable){
+            ((DataTable)c).search();
+        }
+    }
     public void fullScreen(){
         GraphicsDevice gd=getGraphicsConfiguration().getDevice();
         if(gd.isFullScreenSupported()){
