@@ -15,7 +15,7 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileFilter;
 
-public class MainApplication extends JFrame{
+public class SimpleDBMS extends JFrame{
     private final String[] menus={"File", "Edit", "View", "Tools", "Help"};
     private final SimpleDateFormat sdf=new SimpleDateFormat("HH:mm:ss EEE, dd MMM yyyy");
     
@@ -28,7 +28,7 @@ public class MainApplication extends JFrame{
     
     private boolean isFullScreen=false;
     
-    public MainApplication(){
+    public SimpleDBMS(){
         initcomp();
         setVisible(true);
     }
@@ -76,25 +76,32 @@ public class MainApplication extends JFrame{
         });
         
         //Initialize database
-        String path="DBQUARK.mdb";
+        String path="MyDataBase.mdb";
+        dbFile=null;
         try{
             dbFile=new File(path);
             db=DatabaseBuilder.open(dbFile);
             fc.setCurrentDirectory(dbFile);
         }catch(IOException e){
-            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
-            openFile();
+            fc.showOpenDialog(this);
+            dbFile=fc.getSelectedFile();
+            try{
+                db=DatabaseBuilder.open(dbFile);
+            }catch(IOException e1){
+                Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e1);
+            }
         }
+        
         
         //Initialize statusPanel
         infoLabel=new JLabel();
         pathLabel=new JLabel();
-        JPanel status=new JPanel(new GridLayout(1,3)){
+        JPanel status=new JPanel(new BorderLayout(30,30)){
             {
                 setBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED));
-                add(pathLabel);
-                add(infoLabel);
-                add(new RealTimeLabel(1000, new Caller("getTime", MainApplication.this)));
+                add(pathLabel, "West");
+                add(infoLabel, "Center");
+                add(new RealTimeLabel(1000, new Caller("getTime", SimpleDBMS.this)), "East");
             }
         };
         updatePath();
@@ -215,8 +222,10 @@ public class MainApplication extends JFrame{
         }
     }
     public void about(){
-        JOptionPane.showMessageDialog(this,
-                "2014 Quark Industries",
+        JOptionPane.showMessageDialog(this, 
+                "<html>2014 Quark Industries.<br>" 
+                + "Designed with Java TM.<br>"
+                + "License number: XXXX-XXXX-XXXX-XXXX.</html>",
                 "About",
                 JOptionPane.INFORMATION_MESSAGE);
     }
@@ -225,8 +234,8 @@ public class MainApplication extends JFrame{
         try{
             UIManager.setLookAndFeel(new WindowsLookAndFeel());
         }catch(UnsupportedLookAndFeelException e){
-            Logger.getLogger(MainApplication.class.getName()).log(Level.SEVERE, null, e);
+            Logger.getLogger(SimpleDBMS.class.getName()).log(Level.SEVERE, null, e);
         }
-        MainApplication m=new MainApplication();
+        SimpleDBMS m=new SimpleDBMS();
     }
 }
