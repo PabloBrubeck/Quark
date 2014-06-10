@@ -17,6 +17,7 @@ import javax.swing.border.*;
 import javax.swing.event.*;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.table.*;
+import javax.swing.tree.*;
 
 public class DataTable extends JPanel{
     private class InputPanel extends JPanel{
@@ -188,6 +189,20 @@ public class DataTable extends JPanel{
             addFromCsv(fc.getSelectedFile());
         }
     }
+    private class TreePanel extends JPanel{
+        private JTree tree;
+        public TreePanel(){
+            super();
+            tree=new JTree();
+            add(tree);
+        }
+        public void display(TreeNode node){
+            remove(tree);
+            add(tree=new JTree(node));
+            revalidate();
+            repaint();
+        }
+    }
     private class DateEditor extends AbstractCellEditor implements TableCellEditor{
         JDateChooser dc;
         public DateEditor(){
@@ -240,6 +255,8 @@ public class DataTable extends JPanel{
     private DefaultTableModel model;
     private TableRowSorter sorter;
     private JComboBox<String> combo;
+    private JTabbedPane tabbedPane;
+    private TreePanel treePanel;
     private JPopupMenu cellPopup, headerPopup;
     private ArrayList<TableColumn> hiddenColumns;
     private int indexHeader;
@@ -346,6 +363,7 @@ public class DataTable extends JPanel{
                         }if(me.isPopupTrigger() && me.getComponent() instanceof JTable){
                             cellPopup.show(me.getComponent(), me.getX(), me.getY());
                         }
+                        treePanel.display(getDescendants(convertRowIndexToModel(rowindex)+1));
                     }
                 });
                 getTableHeader().addMouseListener(new MouseAdapter(){
@@ -389,10 +407,15 @@ public class DataTable extends JPanel{
             }
         };
         
+        treePanel=new TreePanel();
+        tabbedPane=new JTabbedPane();
+        tabbedPane.add("Capturar", new InputPanel());
+        tabbedPane.add("Ver", treePanel);
+        
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         add(new JScrollPane(table, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                         JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED), "Center");
-        add(new InputPanel(), "East");
+        add(tabbedPane, "East");
     }
     private void findRelationships(Database db) throws IOException{
         toTables=new ArrayList();
@@ -545,26 +568,37 @@ public class DataTable extends JPanel{
         return row.toString();
     }
     
-    public ArrayList showDescendants(Integer key) throws IOException{
-        if(toTables.isEmpty()){
-            return null;
-        }
-        ArrayList list=new ArrayList();
-        for(Table t: toTables){
-            Joiner joiner=Joiner.create(dbTable, t);
-            Column column=joiner.getColumns().get(0).getColumn();
-            DataTable dt=globalMap.get(t);
-            ArrayList<Row> rows=new ArrayList();
-            Cursor cursor=CursorBuilder.createCursor(t.getForeignKeyIndex(dbTable));
-            if(cursor.findFirstRow(column, key)){
-                do{
-                    rows.add(cursor.getCurrentRow());
-                }while(cursor.findNextRow(column, key));
+    public DefaultMutableTreeNode getDescendants(Integer primaryKey){
+        DefaultMutableTreeNode node=null;
+        try{
+            Cursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
+            if(cursor.findFirstRow(Collections.singletonMap(names[0], primaryKey))){
+                node=new DefaultMutableTreeNode(rowToString(cursor.getCurrentRow()));
+                for(Table t: toTables){
+                    node.add(globalMap.get(t).getDescendants(primaryKey, dbTable));
+                }
             }
-            
+        }catch(IOException e){
+            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, e);
         }
-        return list;
+        return node;
     }
+    public DefaultMutableTreeNode getDescendants(Integer foreignKey, Table fromTable) throws IOException{
+        DefaultMutableTreeNode folder=new DefaultMutableTreeNode(dbTable.getName());
+        Cursor cursor=CursorBuilder.createCursor(dbTable.getForeignKeyIndex(fromTable));
+        for(Index.Column c: Joiner.create(fromTable, dbTable).getColumns()){
+            while(cursor.findNextRow(Collections.singletonMap(c.getColumn().getName(), foreignKey))){
+                DefaultMutableTreeNode node=new DefaultMutableTreeNode(rowToString(cursor.getCurrentRow()));
+                for(Table t: toTables){
+                    DataTable dt=globalMap.get(t);
+                    node.add(dt.getDescendants((Integer)cursor.getCurrentRow().get(names[0]), dbTable));
+                }
+                folder.add(node);
+            }
+        }
+        return folder;
+    }
+
     public void calculate(int row, int col){
         
     }

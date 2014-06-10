@@ -9,12 +9,10 @@ import java.util.logging.Logger;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import javax.swing.*;
-import java.awt.*;
 
 public class AdaptedDBMS extends SimpleDBMS{
     private class AdaptedDataTable extends DataTable{
-        private Caller caller=null; 
-        private JPanel relationPnl;
+        private Caller caller=null;
         public AdaptedDataTable(Database db, String t) {
             super(db, t);
         }
@@ -37,7 +35,16 @@ public class AdaptedDBMS extends SimpleDBMS{
         try{
             AdaptedDataTable dt=null;
             for(String s: dataBase.getTableNames()){
-                dt=new AdaptedDataTable(dataBase, s);
+                if(s.equals("Pedido")){
+                    dt=new AdaptedDataTable(dataBase, s){
+                        @Override
+                        public String rowToString(Row row){
+                            return row.get(getColumnName(2)).toString();
+                        }
+                    };
+                }else{
+                    dt=new AdaptedDataTable(dataBase, s);
+                }
                 addDataTable(s, dt);
             }
         }catch(IOException e){
