@@ -1,10 +1,6 @@
 package sql;
 
-import java.sql.DriverManager;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.*;
 
 public class Connector {
@@ -13,7 +9,6 @@ public class Connector {
         
     }
     public boolean connectToAccess(String accessFilePath) {
-        //Get connection to database
         try {
             Class.forName("sun.jdbc.odbc.JdbcOdbcDriver");
             String url="jdbc:odbc:Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ="+accessFilePath;  

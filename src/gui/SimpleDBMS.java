@@ -17,13 +17,15 @@ import javax.swing.filechooser.FileFilter;
 
 public class SimpleDBMS extends JFrame{
     private final String[] menus={"File", "Edit", "View", "Tools", "Help"};
-    private final SimpleDateFormat sdf=new SimpleDateFormat("HH:mm:ss EEE, dd MMM yyyy");
+    private final SimpleDateFormat sdf=new SimpleDateFormat("hh:mm:ss EEE, dd MMM yyyy");
+    private final String url="https://github.com/PabloBrubeck/Quark";
     
     private File dbFile;
     private Database db;
     private JFileChooser fc;
     private JTabbedPane tp;
     private ChangeListener cl;
+    private JTextField searchBox;
     private JLabel infoLabel, pathLabel;
     
     private boolean isFullScreen=false;
@@ -55,13 +57,30 @@ public class SimpleDBMS extends JFrame{
                 new MyMenuItem("Copy", "control C", "copy", this), 
                 new MyMenuItem("Paste", "control V", "paste", this),
                 new MyMenuItem("Delete", "DELETE", "delete", this)},
-            {new MyMenuItem("Search", "control F", "search", this),
+            {new MyMenuItem("Search", "control F", "displaySearch", this),
                 new MyMenuItem("Full Screen", "F11", "fullScreen", this)},
             {new MyMenuItem("Options", null, "options", this)},
             {new MyMenuItem("Help Contents", "F1", "helpContents", this), 
                 new MyMenuItem("About", null, "about", this)}
         };
-        setJMenuBar(new MyMenuBar(menus, items));
+        searchBox=new JTextField(25);
+        searchBox.setVisible(false);
+        searchBox.setMaximumSize(searchBox.getPreferredSize());
+        searchBox.addKeyListener(new KeyAdapter(){
+            @Override
+            public void keyReleased(KeyEvent ke){
+                if(ke.getKeyCode()==KeyEvent.VK_ESCAPE){
+                    search("");
+                    searchBox.setVisible(false);
+                    return;
+                }
+                search(searchBox.getText());
+            }
+        });
+        JMenuBar mb=new MyMenuBar(menus, items);
+        mb.add(Box.createHorizontalGlue());
+        mb.add(searchBox);
+        setJMenuBar(mb);
         
         //Initialize fileChooser
         fc=new JFileChooser();
@@ -97,11 +116,14 @@ public class SimpleDBMS extends JFrame{
         //Initialize statusPanel
         infoLabel=new JLabel();
         pathLabel=new JLabel();
-        JPanel status=new JPanel(new BorderLayout(30,30)){
+        JPanel status=new JPanel(new BorderLayout(30,0)){
             {
                 setBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED));
                 add(pathLabel, "West");
-                add(infoLabel, "Center");
+                JPanel grid=new JPanel(new GridLayout(0,2,30,0));
+                grid.add(infoLabel);
+                grid.add(new Hyperlink("Online support", url));
+                add(grid, "Center");
                 add(new RealTimeLabel(1000, new Caller("getTime", SimpleDBMS.this)), "East");
             }
         };
@@ -145,13 +167,13 @@ public class SimpleDBMS extends JFrame{
         pathLabel.setText(dbFile.getAbsolutePath());
     }
     public void updateInfo(){
-        try{
-            String title = tp.getTitleAt(tp.getSelectedIndex());
-            int i=db.getTable(title).getRowCount();
-            infoLabel.setText(title+" "+i+" registros");
-        }catch(IOException e){
-            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+        Component c=tp.getSelectedComponent();
+        String title = tp.getTitleAt(tp.getSelectedIndex());
+        if(c instanceof DataTable){
+            int i=((DataTable)c).getRowCount();
+            title+=": "+i+" registros";
         }
+        infoLabel.setText(title);
     }
     
     //File menu
@@ -202,10 +224,19 @@ public class SimpleDBMS extends JFrame{
         
     }
     //View menu
-    public void search(){
+    public void displaySearch(){
+        if(!searchBox.isVisible()){
+            searchBox.setVisible(true);
+        }
+        if(!searchBox.hasFocus()){
+            searchBox.requestFocus();
+        }
+        search(searchBox.getText());
+    }
+    public void search(String s){
         Component c=tp.getSelectedComponent();
         if(c instanceof DataTable){
-            ((DataTable)c).search();
+            ((DataTable)c).search(s);
         }
     }
     public void fullScreen(){
@@ -234,12 +265,12 @@ public class SimpleDBMS extends JFrame{
         }
     }
     public void about(){
-        JOptionPane.showMessageDialog(null, 
-                "<html>2014 Quark Industries.<br>" 
-                + "Designed with Java TM.<br>"
-                + "License number: XXXX-XXXX-XXXX-XXXX.</html>",
-                "About",
-                JOptionPane.INFORMATION_MESSAGE);
+        JPanel about=new JPanel(new GridLayout(4,1));
+        about.add(new JLabel("2014 Quark Industries"));
+        about.add(new JLabel("Designed with Java TM"));
+        about.add(new JLabel("License: XXXX-XXXX-XXXX-XXXX"));
+        about.add(new Hyperlink("Online support", url));
+        JOptionPane.showMessageDialog(null, about, "About", JOptionPane.INFORMATION_MESSAGE);
     }
     
     public static void main(String[] args){

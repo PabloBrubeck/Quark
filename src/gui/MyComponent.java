@@ -1,11 +1,18 @@
 package gui;
 
+import java.awt.Cursor;
+import java.awt.Desktop;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.logging.Logger;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -13,13 +20,6 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.KeyStroke;
 import javax.swing.Timer;
-import java.util.*;
-import javax.swing.*;
-import java.lang.*;
-import java.net.*;
-import java.awt.*;
-import java.io.*;
-
 
 public class MyComponent{
     public static class Caller{
@@ -103,39 +103,31 @@ public class MyComponent{
                 add(new MyMenu(s[i], options[i]));
             }
         }
-    } 
-    public static void main(String[] args) throws URISyntaxException {
-    final URI uri = new URI("http://java.sun.com");
-    class OpenUrlAction implements ActionListener {
-      @Override public void actionPerformed(ActionEvent e) {
-        open(uri);
-      }
     }
-    JFrame frame = new JFrame("Links");
-    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-    frame.setSize(100, 400);
-    Container container = frame.getContentPane();
-    container.setLayout(new GridBagLayout());
-    JButton button = new JButton();
-    button.setText("<HTML>Click the <FONT color=\"#000099\"><U>link</U></FONT>"
-        + " to go to the Java website.</HTML>");
-    button.setHorizontalAlignment(SwingConstants.LEFT);
-    button.setBorderPainted(false);
-    button.setOpaque(false);
-    button.setBackground(Color.WHITE);
-    button.setToolTipText(uri.toString());
-    button.addActionListener(new OpenUrlAction());
-    container.add(button);
-    frame.setVisible(true);
-  }
-
-    private static void open(URI uri) {
-      if (Desktop.isDesktopSupported()) {
-          try{
-              Desktop.getDesktop().browse(uri);
-          }catch(IOException ex){
-              Logger.getLogger(MyComponent.class.getName()).log(Level.SEVERE, null, ex);
-          }
-      } else { /* TODO: error handling */ }
+    public static class Hyperlink extends JLabel{
+        public Hyperlink(String s, final String uri){
+            super("<HTML><FONT color=\"#0000FF\"><U>"+s+"</U></FONT></HTML>");
+            setToolTipText(uri);
+            addMouseListener(new MouseAdapter(){
+                @Override
+                public void mouseClicked(MouseEvent me){
+                    if(Desktop.isDesktopSupported()){
+                        try{
+                            Desktop.getDesktop().browse(new URI(uri));
+                        }catch(IOException | URISyntaxException e){
+                            Logger.getLogger(MyComponent.class.getName()).log(Level.SEVERE, null, e);
+                        }
+                    }
+                }
+                @Override
+                public void mouseEntered(MouseEvent me) {
+                    setCursor(new Cursor(Cursor.HAND_CURSOR));
+                }
+                @Override
+                public void mouseExited(MouseEvent me) {
+                    setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+                }
+            });
+        }      
     }
 }
