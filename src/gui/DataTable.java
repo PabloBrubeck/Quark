@@ -2,7 +2,6 @@ package gui;
 
 import com.healthmarketscience.jackcess.*;
 import com.healthmarketscience.jackcess.Cursor;
-import com.healthmarketscience.jackcess.util.*;
 import com.toedter.calendar.JDateChooser;
 import gui.MyComponent.*;
 import java.awt.*;
@@ -101,7 +100,7 @@ public class DataTable extends JPanel{
         private JButton importBtn;
 
         public InputPanel(){
-            super(new BorderLayout(20, 20));
+            super(new BorderLayout(10, 10));
             initcomp();
         }
         private void initcomp(){
@@ -163,8 +162,8 @@ public class DataTable extends JPanel{
             JPanel bot=new JPanel(new FlowLayout(FlowLayout.CENTER));
             bot.add(recordBtn);
             bot.add(importBtn);
-            add(new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), "Center");
             add(bot, "South");
+            add(new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), "Center");
         }
         public void record(){
             Object[] rowData=new Object[fields.length];
@@ -243,9 +242,11 @@ public class DataTable extends JPanel{
         }
     }
     
+    private final int[] mask;
     private final String[] names;
     private final DataType[] types;
     private final String dateFormat="dd MMM yyyy";
+    private final SimpleDateFormat sdf=new SimpleDateFormat(dateFormat);
     private final static Map<Table, DataTable> globalMap=new HashMap();
     
     private Table dbTable;
@@ -261,8 +262,9 @@ public class DataTable extends JPanel{
     private ArrayList<TableColumn> hiddenColumns;
     private int indexHeader;
     
-    public DataTable(Database db, String t){
+    public DataTable(Database db, String t, int... ints){
         super(new BorderLayout(20, 20));
+        mask=ints;
         dbTable=null;
         try{
             dbTable=db.getTable(t);
@@ -378,7 +380,6 @@ public class DataTable extends JPanel{
                 setDefaultEditor(Date.class, new DateEditor());
                 setDefaultEditor(Link.class, new LinkEditor());
                 setDefaultRenderer(Date.class, new DefaultTableCellRenderer(){
-                    SimpleDateFormat sdf=new SimpleDateFormat(dateFormat);
                     @Override
                     public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
                         return super.getTableCellRendererComponent(table, sdf.format(value), isSelected, hasFocus, row, column);
@@ -461,11 +462,8 @@ public class DataTable extends JPanel{
         }
         int row=table.convertRowIndexToModel(table.getSelectedRow());
         try{
-            Cursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
-            if(cursor.findFirstRow(Collections.singletonMap(names[0], model.getValueAt(row, 0)))){
-                cursor.deleteCurrentRow();
-                model.removeRow(row);
-            }
+            dbTable.deleteRow(CursorBuilder.findRowByPrimaryKey(dbTable, model.getValueAt(row, 0)));
+            model.removeRow(row);
         }catch(IOException | IllegalArgumentException | ArrayIndexOutOfBoundsException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
@@ -508,7 +506,6 @@ public class DataTable extends JPanel{
         }
         hiddenColumns.clear();
     }
-    
     public void search(String s){
         javax.swing.RowFilter<DefaultTableModel, Object> rf;
         try{
@@ -565,36 +562,47 @@ public class DataTable extends JPanel{
         return names[i];
     }
     public String rowToString(Row row){
-        return row.toString();
+        if(mask==null? true: mask.length==0){
+            return row.toString();
+        }else{
+            String s="";
+            for(int i: mask){
+                String m=names[Math.abs(i)];
+                Object value=row.get(m);
+                if(value instanceof Date){
+                    value=sdf.format(value);
+                }
+                if(i>=0){
+                    s+=" "+value;
+                }else{
+                    s+=" "+m+"="+value;
+                }
+            }
+            return s.substring(1);
+        }
     }
     
-    public DefaultMutableTreeNode getDescendants(Integer primaryKey){
+    public DefaultMutableTreeNode getDescendants(Object primaryKey){
         DefaultMutableTreeNode node=null;
         try{
-            Cursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
-            if(cursor.findFirstRow(Collections.singletonMap(names[0], primaryKey))){
-                node=new DefaultMutableTreeNode(rowToString(cursor.getCurrentRow()));
-                for(Table t: toTables){
-                    node.add(globalMap.get(t).getDescendants(primaryKey, dbTable));
-                }
+            node=new DefaultMutableTreeNode(rowToString(CursorBuilder.findRowByPrimaryKey(dbTable, primaryKey)));
+            for(Table t: toTables){
+                node.add(globalMap.get(t).getDescendants(primaryKey, dbTable));
             }
         }catch(IOException e){
             Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, e);
         }
         return node;
     }
-    public DefaultMutableTreeNode getDescendants(Integer foreignKey, Table fromTable) throws IOException{
+    public DefaultMutableTreeNode getDescendants(Object foreignKey, Table fromTable) throws IOException{
         DefaultMutableTreeNode folder=new DefaultMutableTreeNode(dbTable.getName());
-        Cursor cursor=CursorBuilder.createCursor(dbTable.getForeignKeyIndex(fromTable));
-        for(Index.Column c: Joiner.create(fromTable, dbTable).getColumns()){
-            while(cursor.findNextRow(Collections.singletonMap(c.getColumn().getName(), foreignKey))){
-                DefaultMutableTreeNode node=new DefaultMutableTreeNode(rowToString(cursor.getCurrentRow()));
-                for(Table t: toTables){
-                    DataTable dt=globalMap.get(t);
-                    node.add(dt.getDescendants((Integer)cursor.getCurrentRow().get(names[0]), dbTable));
-                }
-                folder.add(node);
+        IndexCursor cursor=CursorBuilder.createCursor(dbTable.getForeignKeyIndex(fromTable));
+        for(Row row : cursor.newEntryIterable(foreignKey)){
+            DefaultMutableTreeNode node=new DefaultMutableTreeNode(rowToString(row));
+            for(Table t: toTables){
+                node.add(globalMap.get(t).getDescendants(row.get(names[0]), dbTable));
             }
+            folder.add(node);
         }
         return folder;
     }
@@ -605,33 +613,29 @@ public class DataTable extends JPanel{
     
     public static ArrayList<Row> retrieve(Table t, String columnName, Comparable value, int comp){
         ArrayList<Row> list=new ArrayList();
-        try {
-            for(Row row: CursorBuilder.createPrimaryKeyCursor(t)){
-                Object temp=row.get(columnName);
-                int m=value.compareTo(temp);
-                boolean b=false;
-                switch(m){
-                    case -2:
-                        b=(m<=0);
-                        break;
-                    case -1:
-                        b=(m<0);
-                        break;
-                    case 0:
-                        b=(m==0);
-                        break;
-                    case 1:
-                        b=(m>0);
-                        break;
-                    case 2:
-                        b=(m>=0);
-                        break;
-                }if(b){
-                    list.add(row);
-                }
+        for(Row row: t){
+            Object temp=row.get(columnName);
+            int m=value.compareTo(temp);
+            boolean b=false;
+            switch(m){
+                case -2:
+                    b=(m<=0);
+                    break;
+                case -1:
+                    b=(m<0);
+                    break;
+                case 0:
+                    b=(m==0);
+                    break;
+                case 1:
+                    b=(m>0);
+                    break;
+                case 2:
+                    b=(m>=0);
+                    break;
+            }if(b){
+                list.add(row);
             }
-        }catch(IOException e){
-            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, e);
         }
         return list;
     }

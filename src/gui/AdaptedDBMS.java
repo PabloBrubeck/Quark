@@ -13,15 +13,11 @@ import javax.swing.*;
 public class AdaptedDBMS extends SimpleDBMS{
     private class AdaptedDataTable extends DataTable{
         private Caller caller=null;
-        public AdaptedDataTable(Database db, String t) {
-            super(db, t);
+        public AdaptedDataTable(Database db, String t, int... ints) {
+            super(db, t, ints);
         }
         public void setCaller(Caller c){
             caller=c;
-        }
-        @Override
-        public String rowToString(Row row){
-            return row.get(getColumnName(1)).toString();
         }
         @Override
         public void calculate(int r, int c){
@@ -32,20 +28,13 @@ public class AdaptedDBMS extends SimpleDBMS{
     }
     @Override
     public void openDataTables(Database dataBase){
+        int[][] masks={{1,2,3},{1},{1},{1},{1},{1},{3,2},{1},{2},{1},{1}};
         try{
-            AdaptedDataTable dt=null;
+            int k=0;
             for(String s: dataBase.getTableNames()){
-                if(s.equals("Pedido")){
-                    dt=new AdaptedDataTable(dataBase, s){
-                        @Override
-                        public String rowToString(Row row){
-                            return row.get(getColumnName(2)).toString();
-                        }
-                    };
-                }else{
-                    dt=new AdaptedDataTable(dataBase, s);
-                }
+                AdaptedDataTable dt=new AdaptedDataTable(dataBase, s, masks[k]);
                 addDataTable(s, dt);
+                k++;
             }
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
