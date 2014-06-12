@@ -1,7 +1,6 @@
 package gui;
 
 import com.healthmarketscience.jackcess.*;
-import com.sun.java.swing.plaf.windows.WindowsLookAndFeel;
 import gui.MyComponent.*;
 import java.io.IOException;
 import java.util.logging.Level;
@@ -10,7 +9,7 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
 public class AdaptedDBMS extends SimpleDBMS{
-    private class AdaptedDataTable extends DataTable{
+    public class AdaptedDataTable extends DataTable{
         private Caller caller=null;
         public AdaptedDataTable(Database db, String t, int... ints) {
             super(db, t, ints);
@@ -24,10 +23,15 @@ public class AdaptedDBMS extends SimpleDBMS{
                 caller.invoke();
             }
         }
+        @Override
+        public void goTo(DataTable dt){
+            getTabbedPane().setSelectedComponent(dt);
+        }
     }
+    
     @Override
     public void openDataTables(Database dataBase){
-        int[][] masks={{2,-3},{1},{1},{1,3,-2},{1},{1,3,-2},{2,-3},{2,-3},{2,-4},{1},{2,-1}};
+        int[][] masks={{2,-3},{4,-3},{1},{1,3,-2},{1},{1,3,-2},{2,-3},{2,-3},{2,-4},{1},{2,-1}};
         try{
             int k=0;
             for(String s: dataBase.getTableNames()){
@@ -41,8 +45,8 @@ public class AdaptedDBMS extends SimpleDBMS{
     }
     public static void main(String[] args){
         try{
-            UIManager.setLookAndFeel(new WindowsLookAndFeel());
-        }catch(UnsupportedLookAndFeelException e){
+            UIManager.setLookAndFeel("com.sun.java.swing.plaf.windows.WindowsLookAndFeel");
+        }catch(ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException e){
             Logger.getLogger(SimpleDBMS.class.getName()).log(Level.SEVERE, null, e);
         }
         AdaptedDBMS m=new AdaptedDBMS();

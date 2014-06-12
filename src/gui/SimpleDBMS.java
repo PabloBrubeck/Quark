@@ -2,7 +2,6 @@ package gui;
 
 import gui.MyComponent.*;
 import com.healthmarketscience.jackcess.*;
-import com.sun.java.swing.plaf.windows.WindowsLookAndFeel;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
@@ -22,8 +21,8 @@ public class SimpleDBMS extends JFrame{
     
     private File dbFile;
     private Database db;
-    private JFileChooser fc;
-    private JTabbedPane tp;
+    private JFileChooser fileChooser;
+    private JTabbedPane tabbedPane;
     private ChangeListener cl;
     private JTextField searchBox;
     private JLabel infoLabel, pathLabel;
@@ -77,14 +76,32 @@ public class SimpleDBMS extends JFrame{
                 search(searchBox.getText());
             }
         });
+        searchBox.addFocusListener(new FocusAdapter(){
+            private boolean empty=false;
+            @Override
+            public void focusGained(FocusEvent fe){
+                if(empty){
+                    searchBox.setText("");
+                    searchBox.setForeground(Color.BLACK);
+                }
+            }
+            @Override
+            public void focusLost(FocusEvent fe){
+                if(searchBox.getText().isEmpty()){
+                    empty=true;
+                    searchBox.setText("Search (Ctrl+F)");
+                    searchBox.setForeground(Color.DARK_GRAY);
+                }
+            }
+        });
         JMenuBar mb=new MyMenuBar(menus, items);
         mb.add(Box.createHorizontalGlue());
         mb.add(searchBox);
         setJMenuBar(mb);
         
         //Initialize fileChooser
-        fc=new JFileChooser();
-        fc.setFileFilter(new FileFilter(){
+        fileChooser=new JFileChooser();
+        fileChooser.setFileFilter(new FileFilter(){
             @Override
             public boolean accept(File file){
                 return file.isDirectory() || file.getName().endsWith(".mdb");
@@ -96,22 +113,17 @@ public class SimpleDBMS extends JFrame{
         });
         
         //Initialize database
-        String path="MyDataBase.mdb";
-        dbFile=null;
-        try{
-            dbFile=new File(path);
-            db=DatabaseBuilder.open(dbFile);
-            fc.setCurrentDirectory(dbFile);
-        }catch(IOException e){
-            fc.showOpenDialog(this);
-            dbFile=fc.getSelectedFile();
-            try{
-                db=DatabaseBuilder.open(dbFile);
-            }catch(IOException e1){
-                Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e1);
-            }
+        dbFile=new File("MyDataBase.mdb");
+        if(!dbFile.exists() || dbFile.isDirectory()){
+            fileChooser.showOpenDialog(this);
+            dbFile=fileChooser.getSelectedFile();
         }
-        
+        try{
+            db=DatabaseBuilder.open(dbFile);
+            fileChooser.setCurrentDirectory(dbFile);
+        }catch(IOException e1){
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e1);
+        }
         
         //Initialize statusPanel
         infoLabel=new JLabel();
@@ -130,9 +142,9 @@ public class SimpleDBMS extends JFrame{
         updatePath();
         
         //Initialize tabbedPane
-        tp=new JTabbedPane();
+        tabbedPane=new JTabbedPane();
         openDataTables(db);
-        tp.addChangeListener(cl=new ChangeListener(){
+        tabbedPane.addChangeListener(cl=new ChangeListener(){
             @Override
             public void stateChanged(ChangeEvent ce){
                 updateInfo();
@@ -142,7 +154,7 @@ public class SimpleDBMS extends JFrame{
         //Add components to frame
         Container contentPane=getContentPane();
         contentPane.setLayout(new BorderLayout());
-        contentPane.add(tp, "Center");
+        contentPane.add(tabbedPane, "Center");
         contentPane.add(status, "South");
     }
     
@@ -156,7 +168,11 @@ public class SimpleDBMS extends JFrame{
         }
     }
     public void addDataTable(String s, DataTable dt){
-        tp.addTab(s, dt);
+        tabbedPane.addTab(s, dt);
+    }
+    
+    public JTabbedPane getTabbedPane(){
+        return tabbedPane;
     }
     
     //Status bar
@@ -167,8 +183,8 @@ public class SimpleDBMS extends JFrame{
         pathLabel.setText(dbFile.getAbsolutePath());
     }
     public void updateInfo(){
-        Component c=tp.getSelectedComponent();
-        String title = tp.getTitleAt(tp.getSelectedIndex());
+        Component c=tabbedPane.getSelectedComponent();
+        String title = tabbedPane.getTitleAt(tabbedPane.getSelectedIndex());
         if(c instanceof DataTable){
             int i=((DataTable)c).getRowCount();
             title+=": "+i+" registros";
@@ -178,22 +194,22 @@ public class SimpleDBMS extends JFrame{
     
     //File menu
     public void openFile(){
-        fc.showOpenDialog(this);
-        dbFile=fc.getSelectedFile();
+        fileChooser.showOpenDialog(this);
+        dbFile=fileChooser.getSelectedFile();
         try{
             db.close();
             db=DatabaseBuilder.open(dbFile);
-            tp.removeChangeListener(cl);
-            tp.removeAll();
+            tabbedPane.removeChangeListener(cl);
+            tabbedPane.removeAll();
             openDataTables(db);
-            tp.addChangeListener(cl);
+            tabbedPane.addChangeListener(cl);
             updatePath();
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
     }
     public void saveFile(){
-        fc.showSaveDialog(this);
+        fileChooser.showSaveDialog(this);
         updatePath();
     }
     public void exit(){
@@ -231,10 +247,9 @@ public class SimpleDBMS extends JFrame{
         if(!searchBox.hasFocus()){
             searchBox.requestFocus();
         }
-        search(searchBox.getText());
     }
     public void search(String s){
-        Component c=tp.getSelectedComponent();
+        Component c=tabbedPane.getSelectedComponent();
         if(c instanceof DataTable){
             ((DataTable)c).search(s);
         }
@@ -275,8 +290,8 @@ public class SimpleDBMS extends JFrame{
     
     public static void main(String[] args){
         try{
-            UIManager.setLookAndFeel(new WindowsLookAndFeel());
-        }catch(UnsupportedLookAndFeelException e){
+            UIManager.setLookAndFeel("com.sun.java.swing.plaf.windows.WindowsLookAndFeel");
+        }catch(ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException e){
             Logger.getLogger(SimpleDBMS.class.getName()).log(Level.SEVERE, null, e);
         }
         SimpleDBMS m=new SimpleDBMS();

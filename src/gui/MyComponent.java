@@ -1,5 +1,6 @@
 package gui;
 
+import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.event.ActionEvent;
@@ -11,15 +12,20 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
+import javax.swing.Icon;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.Timer;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.DefaultMutableTreeNode;
 
 public class MyComponent{
     public static class Caller{
@@ -129,5 +135,63 @@ public class MyComponent{
                 }
             });
         }      
+    }
+    public static class IconNode extends DefaultMutableTreeNode {
+        private Icon icon;
+        private String iconName;
+        public IconNode(){
+            this(null);
+        }
+        public IconNode(Object userObject){
+            this(userObject, true, null);
+        }
+        public IconNode(Object userObject, boolean allowsChildren, Icon icon){
+            super(userObject, allowsChildren);
+            this.icon = icon;
+        }
+        public void setIcon(Icon icon){
+            this.icon = icon;
+        }
+        public Icon getIcon() {
+            return icon;
+        }
+        public String getIconName(){
+            if (iconName != null){
+                return iconName;
+            } else {
+                String str = userObject.toString();
+                int index = str.lastIndexOf(".");
+                if (index != -1) {
+                    return str.substring(++index);
+                } else {
+                    return null;
+                }
+            }
+        }
+        public void setIconName(String name) {
+            iconName=name;
+        }
+    }
+    public static class IconNodeRenderer extends DefaultTreeCellRenderer {
+        @Override
+        public Component getTreeCellRendererComponent(JTree tree, Object value,
+                boolean sel, boolean expanded, boolean leaf, int row,
+                boolean hasFocus) {
+            super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+            Icon icon=((IconNode)value).getIcon();
+            if(icon==null){
+                HashMap icons=(HashMap)tree.getClientProperty("JTree.icons");
+                String name = ((IconNode)value).getIconName();
+                if ((icons != null) && (name != null)) {
+                    icon=(Icon)icons.get(name);
+                    if(icon != null){
+                        setIcon(icon);
+                    }
+                }
+            }else{
+                setIcon(icon);
+            }
+            return this;
+        }
     }
 }
