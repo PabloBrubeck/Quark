@@ -217,7 +217,7 @@ public class DataTable extends JPanel{
             }
             recordBtn=new JButton(new MyAction("Capturar", null, new Caller("record", this)));
             importBtn=new JButton(new MyAction("Importar", null, new Caller("importFromCsv", this)));
-            unlockBtn=new JButton(new MyAction("Terminar", null, new Caller("unlockFields", this)));
+            unlockBtn=new JButton(new MyAction("Listo", null, new Caller("unlockFields", this)));
             unlockBtn.setVisible(false);
             
             JPanel bot=new JPanel(new FlowLayout(FlowLayout.CENTER));

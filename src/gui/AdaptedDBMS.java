@@ -34,7 +34,7 @@ public class AdaptedDBMS extends SimpleDBMS{
         int[][] masks={{2,-3},{4,-3},{1},{1,3,-2},{1},{1,3,-2},{2,-3},{2,-3},{2,-4},{1},{2,-1}};
         try{
             int k=0;
-            for(String s: dataBase.getTableNames()){
+            for(final String s: dataBase.getTableNames()){
                 AdaptedDataTable dt=new AdaptedDataTable(dataBase, s, masks[k]);
                 addDataTable(s, dt);
                 k++;
