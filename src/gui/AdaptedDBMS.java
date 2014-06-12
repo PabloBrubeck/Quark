@@ -8,7 +8,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
-import javax.swing.*;
 
 public class AdaptedDBMS extends SimpleDBMS{
     private class AdaptedDataTable extends DataTable{
@@ -28,7 +27,7 @@ public class AdaptedDBMS extends SimpleDBMS{
     }
     @Override
     public void openDataTables(Database dataBase){
-        int[][] masks={{1,2,3},{1},{1},{1},{1},{1},{3,2},{1},{2},{1},{1}};
+        int[][] masks={{2,-3},{1},{1},{1,3,-2},{1},{1,3,-2},{2,-3},{2,-3},{2,-4},{1},{2,-1}};
         try{
             int k=0;
             for(String s: dataBase.getTableNames()){

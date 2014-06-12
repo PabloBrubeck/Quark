@@ -64,35 +64,38 @@ public class DataTable extends JPanel{
             }
         }
         private class LinkInputField extends InputField{
-            private JComboBox temp;
-            public LinkInputField(String s, final Table t) {
+            private JComboBox cb;
+            public LinkInputField(final String s) {
                 super(s);
-                temp.addItem("Haga click para activar las opciones");
-                temp.setPreferredSize(new Dimension(200,28));
-                temp.addMouseListener(new MouseAdapter(){
+                final Table from=fromTables.get(s);
+                cb.addItem(s);
+                cb.addMouseListener(new MouseAdapter(){
                     @Override
-                    public void mousePressed(MouseEvent me) {
-                        remove(temp);
-                        add(temp=globalMap.get(t).combo);
-                        revalidate();
-                        repaint();
+                    public void mouseEntered(MouseEvent me) {
+                        int index=cb.getSelectedIndex();
+                        cb.removeAllItems();
+                        ComboBoxModel m=globalMap.get(from).getCombo().getModel();
+                        for(int i=0; i<m.getSize(); i++){
+                            cb.addItem(m.getElementAt(i));
+                        }
+                        cb.setSelectedIndex(index);
                     }
                 });
-                add(temp);
             }
             @Override
             public void initcomp(){
-                temp=new JComboBox();
+                cb=new JComboBox();
+                cb.setPreferredSize(new Dimension(200, 26));
+                add(cb);
             }
             @Override
             public String getText(){
-                return temp.getSelectedItem().toString();
+                return cb.getSelectedItem().toString();
             }
             @Override
             public Object getData(){
-                return temp.getSelectedIndex()+1;
+                return cb.getSelectedIndex()+1;
             }
-
         }
         
         private InputField[] fields;
@@ -120,6 +123,8 @@ public class DataTable extends JPanel{
                         };
                         break;
                     case "Link":
+                        fields[i]=new LinkInputField(columnName);
+                        break;
                     case "Long":
                         fields[i]=new InputField(columnName){
                             @Override
@@ -192,6 +197,7 @@ public class DataTable extends JPanel{
         private JTree tree;
         public TreePanel(){
             super();
+            this.setBackground(Color.WHITE);
             tree=new JTree();
             add(tree);
         }
@@ -230,7 +236,7 @@ public class DataTable extends JPanel{
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean bln, int row, int column){
             Table from=fromTables.get(names[column]);
-            cb=globalMap.get(from).combo;
+            cb=globalMap.get(from).getCombo();
             cb.setSelectedIndex((Integer)value-1);
             return cb;
         }     
@@ -245,12 +251,12 @@ public class DataTable extends JPanel{
     private final int[] mask;
     private final String[] names;
     private final DataType[] types;
-    private final String dateFormat="dd MMM yyyy";
-    private final SimpleDateFormat sdf=new SimpleDateFormat(dateFormat);
-    private final static Map<Table, DataTable> globalMap=new HashMap();
+    private final static String dateFormat="dd MMM yyyy";
+    private final static SimpleDateFormat sdf=new SimpleDateFormat(dateFormat);
+    private final static HashMap<Table, DataTable> globalMap=new HashMap();
     
     private Table dbTable;
-    private Map<String, Table> fromTables;
+    private HashMap<String, Table> fromTables;
     private ArrayList<Table> toTables;
     private JTable table;
     private DefaultTableModel model;
@@ -287,7 +293,6 @@ public class DataTable extends JPanel{
         
         combo=new JComboBox();
         combo.setEditable(false);
-        updateCombo();
         
         hiddenColumns=new ArrayList();
         cellPopup=new JPopupMenu();
@@ -389,7 +394,7 @@ public class DataTable extends JPanel{
                     @Override
                     public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
                         Table from=fromTables.get(getColumnName(column));
-                        JComboBox temp=globalMap.get(from).combo;
+                        JComboBox temp=globalMap.get(from).getCombo();
                         if(temp!=null){
                             value=temp.getItemAt((Integer)value-1);
                         }
@@ -452,6 +457,9 @@ public class DataTable extends JPanel{
         return sorter;
     }
     public JComboBox<String> getCombo(){
+        if(combo.getItemCount()==0){
+            updateCombo();
+        }
         return combo;
     }
     
@@ -569,6 +577,15 @@ public class DataTable extends JPanel{
             for(int i: mask){
                 String m=names[Math.abs(i)];
                 Object value=row.get(m);
+                if(fromTables.containsKey(m)){
+                    try {
+                        Table from=fromTables.get(m);
+                        DataTable dt=globalMap.get(from);
+                        value=dt.rowToString(CursorBuilder.findRowByPrimaryKey(from, value));
+                    }catch(IOException ex){
+                        Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
                 if(value instanceof Date){
                     value=sdf.format(value);
                 }
