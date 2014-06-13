@@ -1,7 +1,6 @@
 package gui;
 
 import com.healthmarketscience.jackcess.*;
-import gui.MyComponent.*;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -9,19 +8,10 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
 public class AdaptedDBMS extends SimpleDBMS{
+    
     public class AdaptedDataTable extends DataTable{
-        private Caller caller=null;
         public AdaptedDataTable(Database db, String t, int... ints) {
             super(db, t, ints);
-        }
-        public void setCaller(Caller c){
-            caller=c;
-        }
-        @Override
-        public void calculate(int r, int c){
-            if(caller!=null){
-                caller.invoke();
-            }
         }
         @Override
         public void goTo(DataTable dt){
@@ -35,7 +25,37 @@ public class AdaptedDBMS extends SimpleDBMS{
         try{
             int k=0;
             for(final String s: dataBase.getTableNames()){
-                AdaptedDataTable dt=new AdaptedDataTable(dataBase, s, masks[k]);
+                AdaptedDataTable dt;
+                switch(s){
+                    default:
+                        dt=new AdaptedDataTable(dataBase, s, masks[k]);
+                        break;
+                    case "Pedidos":
+                        dt=new AdaptedDataTable(dataBase, s, masks[k]){
+                            @Override
+                            public void calculate(Cursor cursor){
+                                setCurrentRowValue(cursor, "Total", getToTableTotal(cursor, "Ordenes", "Precio"));
+                            }
+                        };
+                        break;
+                    case "Ordenes":
+                        dt=new AdaptedDataTable(dataBase, s, masks[k]){
+                            @Override
+                            public void calculate(Cursor cursor){
+                                setCurrentRowValue(cursor, "Precio", multiply(getFromTable(cursor, "Id Producto", "Precio de Venta"), getCurrentRowValue(cursor, "Cantidad")));
+                            }
+                        };
+                        break;
+                    case "Asistencia":
+                        dt=new AdaptedDataTable(dataBase, s, masks[k]){
+                            @Override
+                            public void calculate(Cursor cursor){
+                                setCurrentRowValue(cursor, "Total", getCurrentRowTotal(cursor, "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"));
+                            }
+                        };
+                        break;
+                        
+                }
                 addDataTable(s, dt);
                 k++;
             }

@@ -360,6 +360,7 @@ public class DataTable extends JPanel{
     private JPopupMenu cellPopup, headerPopup;
     private ArrayList<TableColumn> hiddenColumns;
     private int indexHeader;
+    private boolean autoUpdate=false;
     
     public DataTable(Database db, String t, int... ints){
         super(new BorderLayout(20, 20));
@@ -392,6 +393,7 @@ public class DataTable extends JPanel{
         headerPopup.add(new MyMenuItem("Ocultar columna", null, "hideColumn", this));
         headerPopup.add(new MyMenuItem("Mostrar columnas ocultas", null, "unhideColumns", this));
         cellPopup=new JPopupMenu();
+        cellPopup.add(new MyMenuItem("Recalcular", null, "calculate", this));
         for(Table t: toTables){
             cellPopup.add(new MyMenuItem("Agregar "+t.getName(), null, "sendRequest", this, t));
         }
@@ -402,22 +404,32 @@ public class DataTable extends JPanel{
                 addTableModelListener(new TableModelListener(){
                     @Override
                     public void tableChanged(TableModelEvent tme){
-                        int row=tme.getFirstRow();
-                        int col=tme.getColumn();
-                        if(tme.getType()==TableModelEvent.UPDATE){
+                        if(!autoUpdate){
+                            int row=tme.getFirstRow();
+                            int col=tme.getColumn();
                             try{
-                                String columnName=getColumnName(col);
-                                //Assumes that the table has a primary key on the first column
-                                Cursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
-                                if(cursor.findFirstRow(Collections.singletonMap(names[0], getValueAt(row, 0)))){
-                                    cursor.setCurrentRowValue(dbTable.getColumn(columnName), getValueAt(row, col));
+                                IndexCursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
+                                switch(tme.getType()){
+                                    case TableModelEvent.UPDATE:
+                                        //Assumes that the table has a primary key on the first column
+                                        if(cursor.findFirstRow(Collections.singletonMap(names[0], getValueAt(row, 0)))){
+                                            cursor.setCurrentRowValue(dbTable.getColumn(names[col]), getValueAt(row, col));
+                                            calculate(cursor);
+                                            updateRow(cursor, row);
+                                        }
+                                        break;
+                                    case TableModelEvent.INSERT:
+                                        cursor.afterLast();
+                                        cursor.getPreviousRow();
+                                        calculate(cursor);
+                                        updateRow(cursor, row);
+                                        break;
                                 }
+                                updateCombo();
                             }catch(IOException | IllegalArgumentException | ArrayIndexOutOfBoundsException e){
                                 Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
                             }
                         }
-                        calculate(row, col);
-                        updateCombo();
                     }
                 });
             }
@@ -538,6 +550,13 @@ public class DataTable extends JPanel{
             }
         }
     }
+    private void updateRow(Cursor cursor, int rowIndex){
+        autoUpdate=true;
+        for(int i=0; i<model.getColumnCount(); i++){
+            model.setValueAt(getCurrentRowValue(cursor, names[i]), rowIndex, i);
+        }
+        autoUpdate=false;
+    }
     
     public Table getTable(){
         return dbTable;
@@ -570,6 +589,9 @@ public class DataTable extends JPanel{
     public Integer getSelectedPrimaryKey(){
         return (Integer)model.getValueAt(table.convertRowIndexToModel(table.getSelectedRow()), 0);
     }
+    public String getColumnName(int i){
+        return names[i];
+    }
     public Object[][] getRowData(){
         int r=dbTable.getRowCount();
         int c=dbTable.getColumnCount();
@@ -584,17 +606,14 @@ public class DataTable extends JPanel{
         }
         return rowData;
     }
-    public String getColumnName(int i){
-        return names[i];
-    }
     public Row getLastRow(){
         Row row=null;
         try {
             IndexCursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
             cursor.afterLast();
             row=cursor.getPreviousRow();
-        } catch (IOException ex) {
-            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException e){
+            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, e);
         }
         return row;
     }
@@ -625,6 +644,18 @@ public class DataTable extends JPanel{
         return folder;
     }
     
+    public void calculate(){               
+        try{
+            IndexCursor cursor = CursorBuilder.createPrimaryKeyCursor(dbTable);
+            if(cursor.findFirstRow(Collections.singletonMap(names[0], getSelectedPrimaryKey()))){
+                calculate(cursor);
+                updateRow(cursor, table.convertRowIndexToModel(table.getSelectedRow()));
+            }
+        }catch(IOException e){
+            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, e);
+        }
+           
+    }
     public void deleteRow(){
         int i=JOptionPane.showConfirmDialog(null, "¿Está seguro de que quiere borrar este registro?");
         if(i!=JOptionPane.YES_OPTION){
@@ -695,6 +726,7 @@ public class DataTable extends JPanel{
         model.setDataVector(getRowData(), names);
     }
     
+    //Dependency adquisition
     public void requestFrom(Table from, Integer key){
         goTo(this);
         for(Index.Column col: dbTable.getForeignKeyIndex(from).getColumns()){
@@ -710,14 +742,158 @@ public class DataTable extends JPanel{
         dt.requestFrom(dbTable, getSelectedPrimaryKey());
     }
     
-    //Must Override
+    //Empty methods, should override
+    public void calculate(Cursor cursor) throws IOException{
+        
+    }
     public void goTo(DataTable dt){
         
     }
-    public void calculate(int row, int col){
-        
+   
+    //Formula operators
+    public Object getCurrentRowValue(Cursor cursor, String columnName){
+        try{
+             return cursor.getCurrentRowValue(dbTable.getColumn(columnName));
+        }catch(IOException ex){
+            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
+    }
+    public Object getCurrentRowTotal(Cursor cursor, String... columnNames){
+        Object[] array=new Object[columnNames.length];
+        for(int i=0; i<columnNames.length; i++){
+            array[i]=getCurrentRowValue(cursor, columnNames[i]);
+        }
+       return add(array);
+    }
+    public Object getFromTable(Cursor cursor, String fkColumn, String getColumn){
+         try {
+            Row r=CursorBuilder.findRowByPrimaryKey(fromTables.get(fkColumn), getCurrentRowValue(cursor, fkColumn));
+            return r.get(getColumn);
+         } catch (IOException e) {
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+         }
+         return null;
+    }
+    public Object getToTableTotal(Cursor cursor, String toTableName, String getColumn){
+        Object value=null;
+        try{  
+            Table toTable=dbTable.getDatabase().getTable(toTableName);
+            IndexCursor foreign=CursorBuilder.createCursor(toTable.getForeignKeyIndex(dbTable));
+            for(Row row: foreign.newEntryIterable(getCurrentRowValue(cursor, names[0]))){
+                value=add(value, row.get(getColumn));
+            }
+        }catch(IOException e){
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+        }
+        return value;
+    }
+    public void setCurrentRowValue(Cursor cursor, String columnName, Object value){
+        try{
+            cursor.setCurrentRowValue(dbTable.getColumn(columnName), value);
+        }catch(IOException ex){
+            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
     
+    //Object arithmetic operators
+    public Object add(Object op1, Object op2){
+        if(op1==null){
+            return add(0, op2);
+        }if(op2==null){
+            return op1;
+        }if(op1 instanceof Boolean){
+            op1=(Boolean)op1? 1 : 0;
+        }if(op2 instanceof Boolean){
+            op2=(Boolean)op2? 1 : 0;
+        }if(op1 instanceof String || op2 instanceof String) {
+            return String.valueOf(op1) + String.valueOf(op2);
+        }if(!(op1 instanceof Number) || !(op2 instanceof Number)) {
+            return null;
+        }if(op1 instanceof Double || op2 instanceof Double) {
+            return ((Number)op1).doubleValue() + ((Number)op2).doubleValue();
+        }if(op1 instanceof Float || op2 instanceof Float) {
+            return ((Number)op1).floatValue() + ((Number)op2).floatValue();
+        }if(op1 instanceof Long || op2 instanceof Long) {
+            return ((Number)op1).longValue() + ((Number)op2).longValue();
+        }
+        return ((Number)op1).intValue() + ((Number)op2).intValue();
+    }
+    public Object add(Object... ops){
+        Object sum=null;
+        for(Object t: ops){
+            sum=add(sum, t);
+        }
+        return sum;
+    }
+    public Object subtract(Object op1, Object op2){
+        if(op1==null){
+            return subtract(0, op2);
+        }if(op2==null){
+            return op1;
+        }if(op1 instanceof Boolean){
+            op1=(Boolean)op1? 1 : 0;
+        }if(op2 instanceof Boolean){
+            op2=(Boolean)op2? 1 : 0;
+        }if(!(op1 instanceof Number) || !(op2 instanceof Number)) {
+            return null;
+        }if(op1 instanceof Double || op2 instanceof Double) {
+            return ((Number)op1).doubleValue() - ((Number)op2).doubleValue();
+        }if(op1 instanceof Float || op2 instanceof Float) {
+            return ((Number)op1).floatValue() - ((Number)op2).floatValue();
+        }if(op1 instanceof Long || op2 instanceof Long) {
+            return ((Number)op1).longValue() - ((Number)op2).longValue();
+        }
+        return ((Number)op1).intValue() - ((Number)op2).intValue();
+    }
+    public Object multiply(Object op1, Object op2){
+        if(op1==null){
+            return multiply(1, op2);
+        }if(op2==null){
+            return op1;
+        }if(op1 instanceof Boolean){
+            op1=(Boolean)op1? 1 : 0;
+        }if(op2 instanceof Boolean){
+            op2=(Boolean)op2? 1 : 0;
+        }if(!(op1 instanceof Number) || !(op2 instanceof Number)) {
+            return null;
+        }if(op1 instanceof Double || op2 instanceof Double) {
+            return ((Number)op1).doubleValue() * ((Number)op2).doubleValue();
+        }if(op1 instanceof Float || op2 instanceof Float) {
+            return ((Number)op1).floatValue() * ((Number)op2).floatValue();
+        }if(op1 instanceof Long || op2 instanceof Long) {
+            return ((Number)op1).longValue() * ((Number)op2).longValue();
+        }
+        return ((Number)op1).intValue() * ((Number)op2).intValue();
+    }
+    public Object multiply(Object... ops){
+        Object product=null;
+        for(Object t: ops){
+            product=multiply(product, t);
+        }
+        return product;
+    }
+    public Object divide(Object op1, Object op2){
+        if(op1==null){
+            return divide(1, op2);
+        }if(op2==null){
+            return op1;
+        }if(op1 instanceof Boolean){
+            op1=(Boolean)op1? 1 : 0;
+        }if(op2 instanceof Boolean){
+            op2=(Boolean)op2? 1 : 0;
+        }if(!(op1 instanceof Number) || !(op2 instanceof Number)) {
+            return null;
+        }if(op1 instanceof Double || op2 instanceof Double) {
+            return ((Number)op1).doubleValue() / ((Number)op2).doubleValue();
+        }if(op1 instanceof Float || op2 instanceof Float) {
+            return ((Number)op1).floatValue() / ((Number)op2).floatValue();
+        }if(op1 instanceof Long || op2 instanceof Long) {
+            return ((Number)op1).longValue() / ((Number)op2).longValue();
+        }
+        return ((Number)op1).intValue() / ((Number)op2).intValue();
+    }
+
     public String rowToString(Row row){
         if(mask==null? true: mask.length==0){
             return row.toString();
@@ -764,7 +940,7 @@ public class DataTable extends JPanel{
         }
     }
     
-    public static ArrayList<Row> retrieve(Table t, String columnName, Comparable value, int comp){
+    public static ArrayList<Row> filter(Table t, String columnName, Comparable value, int comp){
         ArrayList<Row> list=new ArrayList();
         for(Row row: t){
             Object temp=row.get(columnName);
