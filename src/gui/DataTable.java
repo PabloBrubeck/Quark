@@ -743,7 +743,7 @@ public class DataTable extends JPanel{
     }
     
     //Empty methods, should override
-    public void calculate(Cursor cursor) throws IOException{
+    public void calculate(Cursor cursor){
         
     }
     public void goTo(DataTable dt){
@@ -940,26 +940,28 @@ public class DataTable extends JPanel{
         }
     }
     
-    public static ArrayList<Row> filter(Table t, String columnName, Comparable value, int comp){
+    public enum CompareEnum{
+        GREATER_OR_EQUAL, GREATER, EQUAL, LESS, LESS_OR_EQUAL
+    }
+    public static ArrayList<Row> filter(Table t, String columnName, Comparable value, CompareEnum comp){
         ArrayList<Row> list=new ArrayList();
         for(Row row: t){
-            Object temp=row.get(columnName);
-            int m=value.compareTo(temp);
+            int m=value.compareTo(row.get(columnName));
             boolean b=false;
-            switch(m){
-                case -2:
+            switch(comp){
+                case LESS_OR_EQUAL:
                     b=(m<=0);
                     break;
-                case -1:
+                case LESS:
                     b=(m<0);
                     break;
-                case 0:
+                case EQUAL:
                     b=(m==0);
                     break;
-                case 1:
+                case GREATER:
                     b=(m>0);
                     break;
-                case 2:
+                case GREATER_OR_EQUAL:
                     b=(m>=0);
                     break;
             }if(b){

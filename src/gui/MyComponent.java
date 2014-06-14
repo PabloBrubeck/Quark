@@ -46,6 +46,9 @@ public class MyComponent{
                 Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
             }
         }
+        public Object getTarget(){
+            return target;
+        }
         public Object invoke(){
             return invoke(target, args);
         }
