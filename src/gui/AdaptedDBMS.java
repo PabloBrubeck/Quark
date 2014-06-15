@@ -30,22 +30,6 @@ public class AdaptedDBMS extends SimpleDBMS{
                     default:
                         dt=new AdaptedDataTable(dataBase, s, masks[k]);
                         break;
-                    case "Asistencia":
-                        dt=new AdaptedDataTable(dataBase, s, masks[k]){
-                            @Override
-                            public void calculate(Cursor cursor){
-                                setCurrentRowValue(cursor, "Total", getCurrentRowTotal(cursor, "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"));
-                            }
-                        };
-                        break;
-                    case "Balance":
-                        dt=new AdaptedDataTable(dataBase, s, masks[k]){
-                            @Override
-                            public void calculate(Cursor cursor){
-                                setCurrentRowValue(cursor, "Utilidades", subtract(getCurrentRowValue(cursor, "Ingreso"), getCurrentRowValue(cursor, "Egreso")));
-                            }
-                        };
-                        break;
                     case "Pedidos":
                         dt=new AdaptedDataTable(dataBase, s, masks[k]){
                             @Override
@@ -61,7 +45,16 @@ public class AdaptedDBMS extends SimpleDBMS{
                                 setCurrentRowValue(cursor, "Precio", multiply(getFromTable(cursor, "Id Producto", "Precio de Venta"), getCurrentRowValue(cursor, "Cantidad")));
                             }
                         };
-                        break;                        
+                        break;
+                    case "Asistencia":
+                        dt=new AdaptedDataTable(dataBase, s, masks[k]){
+                            @Override
+                            public void calculate(Cursor cursor){
+                                setCurrentRowValue(cursor, "Total", getCurrentRowTotal(cursor, "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"));
+                            }
+                        };
+                        break;
+                        
                 }
                 addDataTable(s, dt);
                 k++;
