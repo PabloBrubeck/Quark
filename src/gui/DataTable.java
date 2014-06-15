@@ -325,19 +325,19 @@ public class DataTable extends JPanel{
     }
     private class LinkEditor extends AbstractCellEditor implements TableCellEditor{
         private JComboBox<Row> cb;
-        private Table from;
+        private DataTable dt;
         public LinkEditor(){
             cb=new JComboBox();
         }
         @Override
         public Object getCellEditorValue(){
-            return ((Row)cb.getSelectedItem()).get(from.getPrimaryKeyIndex().getColumns().get(0).getName());
+            return ((Row)cb.getSelectedItem()).get(dt.getColumnName(0));
         }
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean bln, int row, int column){
-            from=fromTables.get(names[column]);
-            cb=globalMap.get(from).getCombo();
-            cb.setSelectedItem(value);
+            Table t=fromTables.get(names[column]);
+            dt=globalMap.get(t);
+            cb=dt.getCombo();
             return cb;
         }     
     }
@@ -352,6 +352,7 @@ public class DataTable extends JPanel{
     private Table dbTable;
     private HashMap<String, Table> fromTables;
     private ArrayList<Table> toTables;
+    private HashMap<Integer, Row> keyMap;
     private JTable table;
     private DefaultTableModel model;
     private TableRowSorter sorter;
@@ -484,14 +485,8 @@ public class DataTable extends JPanel{
                     @Override
                     public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
                         Table from=fromTables.get(getColumnName(column));
-                        DataTable temp=globalMap.get(from);
-                        if(temp!=null){
-                            try {
-                                value=temp.rowToString(CursorBuilder.findRowByPrimaryKey(from, value));
-                            } catch (IOException ex) {
-                                Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
-                            }
-                        }
+                        DataTable dt=globalMap.get(from);
+                        value=dt.rowToString(dt.keyMap.get((Integer)value));
                         return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                     }
                 });
@@ -605,13 +600,16 @@ public class DataTable extends JPanel{
         return names[i];
     }
     public Object[][] getRowData(){
+        keyMap=new HashMap();
         int r=dbTable.getRowCount();
         int c=dbTable.getColumnCount();
         Object[][] rowData=new Object[r][];
         int i=0;
         for(Row row: dbTable){
             rowData[i]=new Object[c];
-            for(int j=0; j<c; j++){
+            rowData[i][0]=row.get(names[0]);
+            keyMap.put((Integer)rowData[i][0], row);
+            for(int j=1; j<c; j++){
                 rowData[i][j]=row.get(names[j]);
             }
             i++;
@@ -685,6 +683,8 @@ public class DataTable extends JPanel{
         try {
             dbTable.addRow(rowData);
             model.addRow(rowData);
+            Row last=getLastRow();
+            keyMap.put((Integer)last.get(names[0]), last);
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
