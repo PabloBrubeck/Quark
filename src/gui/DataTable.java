@@ -98,6 +98,7 @@ public class DataTable extends JPanel{
         private class LinkInputField extends InputField{
             private JComboBox cb;
             private final Table from;
+            private DataTable dt;
             public LinkInputField(String s) {
                 super(s);
                 from=fromTables.get(s);
@@ -112,8 +113,8 @@ public class DataTable extends JPanel{
             private void update(){
                 int index=cb.getSelectedIndex();
                 cb.removeAllItems();
-                JComboBox temp=globalMap.get(from).getCombo();
-                cb.setRenderer(temp.getRenderer());
+                dt=globalMap.get(from);
+                JComboBox temp=dt.getCombo();
                 ComboBoxModel m=temp.getModel();
                 for(int i=0; i<m.getSize(); i++){
                     cb.addItem(m.getElementAt(i));
@@ -149,7 +150,7 @@ public class DataTable extends JPanel{
             }
             @Override
             public Object getData(){
-                return keyList.get(cb.getSelectedIndex());
+                return dt.keyList.get(cb.getSelectedIndex());
             }
         }
         
