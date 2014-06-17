@@ -65,7 +65,7 @@ public class DataTable extends JPanel{
             @Override
             public void initcomp(){
                 setDefaultLocale(Locale.getDefault());
-                dc=new JDateChooser(new Date(System.currentTimeMillis()));
+                dc=new JDateChooser(new Date());
                 dc.setDateFormatString(dateFormat);
                 dc.setPreferredSize(new Dimension(200,28));
                 add(dc);
@@ -149,7 +149,7 @@ public class DataTable extends JPanel{
             }
             @Override
             public Object getData(){
-                return cb.getSelectedIndex()+1;
+                return keyList.get(cb.getSelectedIndex());
             }
         }
         
@@ -324,20 +324,20 @@ public class DataTable extends JPanel{
         }     
     }
     private class LinkEditor extends AbstractCellEditor implements TableCellEditor{
-        private JComboBox<Row> cb;
         private DataTable dt;
+        private JComboBox cb;
         public LinkEditor(){
             cb=new JComboBox();
         }
         @Override
         public Object getCellEditorValue(){
-            return ((Row)cb.getSelectedItem()).get(dt.getColumnName(0));
+            return dt.keyList.get(cb.getSelectedIndex());
         }
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean bln, int row, int column){
-            Table t=fromTables.get(names[column]);
-            dt=globalMap.get(t);
+            dt=globalMap.get(fromTables.get(names[column]));
             cb=dt.getCombo();
+            cb.setSelectedIndex(dt.keyList.indexOf(value));
             return cb;
         }     
     }
@@ -352,11 +352,11 @@ public class DataTable extends JPanel{
     private Table dbTable;
     private HashMap<String, Table> fromTables;
     private ArrayList<Table> toTables;
-    private HashMap<Integer, Row> keyMap;
+    private ArrayList keyList;
     private JTable table;
     private DefaultTableModel model;
     private TableRowSorter sorter;
-    private JComboBox<Row> combo;
+    private JComboBox<String> combo;
     private JTabbedPane tabbedPane;
     private TreePanel treePanel;
     private InputPanel inputPanel;
@@ -389,14 +389,7 @@ public class DataTable extends JPanel{
         globalMap.put(dbTable, this);
         
         combo=new JComboBox();
-        combo.setRenderer(new DefaultListCellRenderer(){
-            @Override
-            public Component getListCellRendererComponent(JList jlist, Object e, int i, boolean bln, boolean bln1) {
-                Object temp=jlist.getModel().getElementAt(i);
-                return super.getListCellRendererComponent(jlist, rowToString((Row)(temp==null? e: temp)), i, bln, bln1);
-            }
-        });
-        combo.setEditable(false);
+        keyList=new ArrayList();
         
         hiddenColumns=new ArrayList();
         headerPopup=new JPopupMenu();
@@ -486,7 +479,7 @@ public class DataTable extends JPanel{
                     public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column){
                         Table from=fromTables.get(getColumnName(column));
                         DataTable dt=globalMap.get(from);
-                        value=dt.rowToString(dt.keyMap.get((Integer)value));
+                        value=dt.getCombo().getItemAt(dt.keyList.indexOf(value));
                         return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                     }
                 });
@@ -600,16 +593,13 @@ public class DataTable extends JPanel{
         return names[i];
     }
     public Object[][] getRowData(){
-        keyMap=new HashMap();
         int r=dbTable.getRowCount();
         int c=dbTable.getColumnCount();
         Object[][] rowData=new Object[r][];
         int i=0;
         for(Row row: dbTable){
             rowData[i]=new Object[c];
-            rowData[i][0]=row.get(names[0]);
-            keyMap.put((Integer)rowData[i][0], row);
-            for(int j=1; j<c; j++){
+            for(int j=0; j<c; j++){
                 rowData[i][j]=row.get(names[j]);
             }
             i++;
@@ -684,7 +674,7 @@ public class DataTable extends JPanel{
             dbTable.addRow(rowData);
             model.addRow(rowData);
             Row last=getLastRow();
-            keyMap.put((Integer)last.get(names[0]), last);
+            keyList.add((Integer)last.get(names[0]));
         }catch(IOException e){
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
@@ -730,8 +720,10 @@ public class DataTable extends JPanel{
     }
     public void updateCombo(){
         combo.removeAllItems();
+        keyList.clear();
         for(Row row: dbTable){
-            combo.addItem(row);
+            combo.addItem(rowToString(row));
+            keyList.add(row.get(names[0]));
         }
     }
     public void refresh(){
