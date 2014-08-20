@@ -40,12 +40,12 @@ public class DataTable extends JPanel{
             public void clear(){
                 tf.setText("");
             }
-            public void lock(Object value){
+            public void freeze(Object value){
                 locked=true;
                 tf.setText(value.toString());
                 tf.setEnabled(false);
             }
-            public void unlock(){
+            public void unfreeze(){
                 locked=false;
                 tf.setText("");
                 tf.setEnabled(true);
@@ -75,13 +75,13 @@ public class DataTable extends JPanel{
                 dc.setDate(new Date());
             }
             @Override
-            public void lock(Object value){
+            public void freeze(Object value){
                 locked=true;
                 dc.setDate((Date)value);
                 dc.setEnabled(false);
             }
             @Override
-            public void unlock(){
+            public void unfreeze(){
                 locked=false;
                 dc.setDate(new Date());
                 dc.setEnabled(true);
@@ -132,14 +132,14 @@ public class DataTable extends JPanel{
                 cb.setSelectedIndex(0);
             }
             @Override
-            public void lock(Object value){
+            public void freeze(Object value){
                 locked=true;
                 update();
                 cb.setSelectedIndex((Integer)value);
                 cb.setEnabled(false);
             }
             @Override
-            public void unlock(){
+            public void unfreeze(){
                 locked=false;
                 cb.setSelectedIndex(0);
                 cb.setEnabled(true);
@@ -157,7 +157,7 @@ public class DataTable extends JPanel{
         private InputField[] fields;
         private JButton recordBtn;
         private JButton importBtn;
-        private JButton unlockBtn;
+        private JButton doneBtn;
         
         public InputPanel(){
             super(new BorderLayout(10, 10));
@@ -165,7 +165,7 @@ public class DataTable extends JPanel{
         }
         private void initcomp(){
             fields=new InputField[names.length];
-            JPanel grid=new JPanel(new GridLayout(fields.length,1,20,20));
+            JPanel grid=new JPanel(new GridLayout(fields.length,1,10,10));
             grid.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 20));
             for(int i=0; i<fields.length; i++){
                 String columnName=names[i];
@@ -220,13 +220,13 @@ public class DataTable extends JPanel{
             }
             recordBtn=new JButton(new MyAction("Capturar", null, new Caller("record", this)));
             importBtn=new JButton(new MyAction("Importar", null, new Caller("importFromCsv", this)));
-            unlockBtn=new JButton(new MyAction("Listo", null, new Caller("unlockFields", this)));
-            unlockBtn.setVisible(false);
+            doneBtn=new JButton(new MyAction("Listo", null, new Caller("unfreezeFields", this)));
+            doneBtn.setVisible(false);
             
             JPanel bot=new JPanel(new FlowLayout(FlowLayout.CENTER));
             bot.add(recordBtn);
             bot.add(importBtn);
-            bot.add(unlockBtn);
+            bot.add(doneBtn);
             add(bot, "South");
             add(new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), "Center");
         }
@@ -237,23 +237,23 @@ public class DataTable extends JPanel{
                 }
             }
         }
-        public void lockField(String name, Object value){
+        public void freezeField(String name, Object value){
             int k=0;
             while(k<fields.length){
                 if(name.equals(fields[k].getName())){
-                    fields[k].lock(value);
-                    unlockBtn.setVisible(true);
+                    fields[k].freeze(value);
+                    doneBtn.setVisible(true);
                     importBtn.setVisible(false);
                     k+=fields.length;
                 }
                 k++;
             }
         }
-        public void unlockFields(){
+        public void unfreezeFields(){
             for(InputField f: fields){
-                f.unlock();
+                f.unfreeze();
             }
-            unlockBtn.setVisible(false);
+            doneBtn.setVisible(false);
             importBtn.setVisible(true);
         }
         public void record(){
@@ -264,7 +264,8 @@ public class DataTable extends JPanel{
             addRow(rowData);
             Object key=getLastRow().get(names[0]);
             for(Table t: toTables){
-                if(JOptionPane.showConfirmDialog(null, "¿Desea agregar "+t.getName()+"?")==JOptionPane.YES_OPTION){
+                int j=JOptionPane.showConfirmDialog(this, "¿Desea agregar "+t.getName()+"?");
+                if(j==JOptionPane.YES_OPTION){
                     sendRequest(t, (Integer)key-1);
                 }
             }
@@ -288,11 +289,31 @@ public class DataTable extends JPanel{
     }
     private class TreePanel extends JPanel{
         private final JTree tree;
+        private Object lastPath;
         public TreePanel(){
             super(new BorderLayout());
+            final JPopupMenu popup=new JPopupMenu();
+            popup.add(new MyMenuItem("Editar", null, () -> edit()));
+            popup.add(new MyMenuItem("Eliminar", null, () -> edit()));
+            
             tree=new JTree(new DefaultTreeModel(null));
             tree.setPreferredSize(new Dimension(200,300));
             tree.setCellRenderer(new IconNodeRenderer());
+            tree.putClientProperty("JTree.icons", icons);
+            tree.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseReleased(MouseEvent me){
+                    int x=me.getX();
+                    int y=me.getY();
+                    int row = tree.getRowForLocation(x, y);
+                    if(row>=0 && me.isPopupTrigger()) {
+                        tree.setSelectionInterval(row, row);
+                        TreePath tp=tree.getPathForLocation(x, y);
+                        lastPath=tp.getLastPathComponent();
+                        popup.show(tree.getComponentAt(x, y), x, y);
+                    }
+                }
+            });
             JButton expand=new JButton(new AbstractAction("Expandir"){
                 @Override
                 public void actionPerformed(ActionEvent ae){
@@ -303,6 +324,15 @@ public class DataTable extends JPanel{
             });
             add(new JScrollPane(tree),"Center");
             add(expand,"South");
+        }
+        public void edit(){
+            if(lastPath instanceof DefaultMutableTreeNode){
+                Object obj=((DefaultMutableTreeNode)lastPath).getUserObject();
+                if(obj instanceof AbstractMap.SimpleEntry){
+                    Map.Entry entry=((Map.Entry)obj);
+                    sendRequest((Table)entry.getValue(), (Integer)entry.getKey());
+                }
+            }
         }
         public void display(TreeNode node){
             tree.setModel(new DefaultTreeModel(node));
@@ -348,6 +378,7 @@ public class DataTable extends JPanel{
     private final DataType[] types;
     private final static String dateFormat="dd MMM yyyy";
     private final static SimpleDateFormat sdf=new SimpleDateFormat(dateFormat);
+    private final static HashMap<String, Icon> icons=new HashMap();
     private final static HashMap<Table, DataTable> globalMap=new HashMap();
     
     private Table dbTable;
@@ -364,7 +395,7 @@ public class DataTable extends JPanel{
     private JPopupMenu cellPopup, headerPopup;
     private ArrayList<TableColumn> hiddenColumns;
     private int indexHeader;
-    private boolean autoUpdate=false;
+    private boolean autoUpdate;
     
     public DataTable(Database db, String t, int... ints){
         super(new BorderLayout(20, 20));
@@ -394,14 +425,14 @@ public class DataTable extends JPanel{
         
         hiddenColumns=new ArrayList();
         headerPopup=new JPopupMenu();
-        headerPopup.add(new MyMenuItem("Ocultar columna", null, "hideColumn", this));
-        headerPopup.add(new MyMenuItem("Mostrar columnas ocultas", null, "unhideColumns", this));
+        headerPopup.add(new MyMenuItem("Ocultar columna", null, () -> hideColumn()));
+        headerPopup.add(new MyMenuItem("Mostrar columnas ocultas", null, () -> unhideColumns()));
         cellPopup=new JPopupMenu();
-        cellPopup.add(new MyMenuItem("Recalcular", null, "calculate", this));
+        cellPopup.add(new MyMenuItem("Recalcular", null, () -> calculate()));
         for(Table t: toTables){
-            cellPopup.add(new MyMenuItem("Agregar "+t.getName(), null, "sendRequest", this, t));
+            cellPopup.add(new MyMenuItem("Agregar "+t.getName(), null, () -> sendRequest(t)));
         }
-        cellPopup.add(new MyMenuItem("Eliminar registro", null, "deleteRow", this));
+        cellPopup.add(new MyMenuItem("Eliminar registro", null, () -> deleteRow()));
         
         model=new DefaultTableModel(getRowData(), names){
             {
@@ -520,7 +551,10 @@ public class DataTable extends JPanel{
                 Point p=me.getPoint();
                 int r=rowAtPoint(p), c=columnAtPoint(p);
                 if(r>=0 && r<getRowCount() && c>=0 && c<getColumnCount()){
-                    return getValueAt(r, c).toString();
+                    Object obj=getValueAt(r, c);
+                    if(obj!=null){
+                        return obj.toString();
+                    }
                 }
                 return super.getToolTipText(me);
             }
@@ -588,7 +622,12 @@ public class DataTable extends JPanel{
         return dbTable.getRowCount();
     }
     public Integer getSelectedPrimaryKey(){
-        return (Integer)model.getValueAt(table.convertRowIndexToModel(table.getSelectedRow()), 0);
+        Object key=model.getValueAt(table.convertRowIndexToModel(table.getSelectedRow()), 0);
+        if(key instanceof Number){
+            return (Integer)key;
+        }else{
+            return null;
+        }
     }
     public String getColumnName(int i){
         return names[i];
@@ -608,20 +647,20 @@ public class DataTable extends JPanel{
         return rowData;
     }
     public Row getLastRow(){
-        Row row=null;
         try {
             IndexCursor cursor=CursorBuilder.createPrimaryKeyCursor(dbTable);
             cursor.afterLast();
-            row=cursor.getPreviousRow();
-        } catch (IOException e){
+            return cursor.getPreviousRow();
+        }catch (IOException e){
             Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, e);
+            return null;
         }
-        return row;
     }
     public DefaultMutableTreeNode getDescendants(Object primaryKey){
         IconNode node=null;
         try{
-            node=new IconNode(rowToString(CursorBuilder.findRowByPrimaryKey(dbTable, primaryKey)));
+            Row row=CursorBuilder.findRowByPrimaryKey(dbTable, primaryKey);
+            node=new IconNode(rowToString(row));
             node.setIconName(dbTable.getName());
             for(Table t: toTables){
                 node.add(globalMap.get(t).getDescendants(primaryKey, dbTable));
@@ -632,7 +671,7 @@ public class DataTable extends JPanel{
         return node;
     }
     public DefaultMutableTreeNode getDescendants(Object foreignKey, Table fromTable) throws IOException{
-        IconNode folder=new IconNode(dbTable.getName());
+        DefaultMutableTreeNode folder=new DefaultMutableTreeNode(dbTable.getName());
         IndexCursor cursor=CursorBuilder.createCursor(dbTable.getForeignKeyIndex(fromTable));
         for(Row row : cursor.newEntryIterable(foreignKey)){
             IconNode node=new IconNode(rowToString(row));
@@ -645,6 +684,9 @@ public class DataTable extends JPanel{
         return folder;
     }
     
+    public void setIcon(String t, Icon icon){
+        icons.put(t, icon);
+    }
     public void calculate(){               
         try{
             IndexCursor cursor = CursorBuilder.createPrimaryKeyCursor(dbTable);
@@ -658,7 +700,7 @@ public class DataTable extends JPanel{
            
     }
     public void deleteRow(){
-        int i=JOptionPane.showConfirmDialog(null, "¿Está seguro de que quiere borrar este registro?");
+        int i=JOptionPane.showConfirmDialog(this, "¿Está seguro de que quiere borrar este registro?");
         if(i!=JOptionPane.YES_OPTION){
             return;
         }
@@ -735,14 +777,14 @@ public class DataTable extends JPanel{
     public void requestFrom(Table from, Integer key){
         goTo(this);
         for(Index.Column col: dbTable.getForeignKeyIndex(from).getColumns()){
-            inputPanel.lockField(col.getColumn().getName(), key-1);
+            inputPanel.freezeField(col.getColumn().getName(), key-1);
         }
     }
     public void sendRequest(Table to, Integer key){
         DataTable dt=globalMap.get(to);
         dt.requestFrom(dbTable, key);
     }
-    public void sendRequest(TableImpl to){
+    public void sendRequest(Table to){
         DataTable dt=globalMap.get(to);
         dt.requestFrom(dbTable, getSelectedPrimaryKey());
     }
@@ -756,6 +798,13 @@ public class DataTable extends JPanel{
     }
    
     //Formula operators
+    public void setCurrentRowValue(Cursor cursor, String columnName, Object value){
+        try{
+            cursor.setCurrentRowValue(dbTable.getColumn(columnName), value);
+        }catch(IOException ex){
+            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
     public Object getCurrentRowValue(Cursor cursor, String columnName){
         try{
              return cursor.getCurrentRowValue(dbTable.getColumn(columnName));
@@ -769,7 +818,7 @@ public class DataTable extends JPanel{
         for(int i=0; i<columnNames.length; i++){
             array[i]=getCurrentRowValue(cursor, columnNames[i]);
         }
-       return add(array);
+        return add(array);
     }
     public Object getFromTable(Cursor cursor, String fkColumn, String getColumn){
          try {
@@ -792,14 +841,7 @@ public class DataTable extends JPanel{
             Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
         }
         return value;
-    }
-    public void setCurrentRowValue(Cursor cursor, String columnName, Object value){
-        try{
-            cursor.setCurrentRowValue(dbTable.getColumn(columnName), value);
-        }catch(IOException ex){
-            Logger.getLogger(DataTable.class.getName()).log(Level.SEVERE, null, ex);
-        }
-    }
+    } 
     
     //Object arithmetic operators
     public Object add(Object op1, Object op2){
@@ -945,29 +987,36 @@ public class DataTable extends JPanel{
         }
     }
     
-    public static ArrayList<Row> filter(Table t, String columnName, Comparable value, int comp){
+    public ArrayList<Row> getRowList(){
+        ArrayList<Row> list=new ArrayList();
+        for(Row r: dbTable){
+            list.add(r);
+        }
+        return list;
+    }
+    public static ArrayList<Row> filter(ArrayList<Row> t, String columnName, Comparable value, int comp){
         ArrayList<Row> list=new ArrayList();
         for(Row row: t){
-            Object temp=row.get(columnName);
-            int m=value.compareTo(temp);
+            int m=value.compareTo(row.get(columnName));
             boolean b=false;
-            switch(m){
+            switch(comp){
                 case -2:
-                    b=(m<=0);
+                    b = (m<=0);
                     break;
                 case -1:
-                    b=(m<0);
+                    b = (m<0);
                     break;
                 case 0:
-                    b=(m==0);
+                    b = (m==0);
                     break;
                 case 1:
-                    b=(m>0);
+                    b = (m>0);
                     break;
                 case 2:
-                    b=(m>=0);
+                    b = (m>=0);
                     break;
-            }if(b){
+            }
+            if(b){
                 list.add(row);
             }
         }

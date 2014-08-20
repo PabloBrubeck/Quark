@@ -3,6 +3,8 @@ package gui;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Desktop;
+import java.awt.Graphics;
+import java.awt.Image;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -15,12 +17,15 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
+import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JPanel;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.Timer;
@@ -28,6 +33,24 @@ import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultMutableTreeNode;
 
 public class MyComponent{
+    public static class BackgroundPanel extends JPanel {
+        private Image backgroundImage;
+        public BackgroundPanel(String fileName){
+            try {
+                backgroundImage = ImageIO.read(getClass().getClassLoader().getResourceAsStream(fileName));
+                setBorder(BorderFactory.createEmptyBorder(27, 0, 27, 0));
+            } catch (IOException ex) {
+                Logger.getLogger(SimpleDBMS.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        @Override
+        public void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if(backgroundImage!=null){
+                g.drawImage(backgroundImage, (this.getWidth()-backgroundImage.getWidth(this))/2, 0, this);
+            }
+        }
+    }
     public static class Caller{
         private Method method;
         private final Object target;
@@ -91,8 +114,18 @@ public class MyComponent{
         }
     }
     public static class MyMenuItem extends JMenuItem{
-        public MyMenuItem(String label, String keyStroke, String methodName, Object obj, Object... args){
-            super(new MyAction(label, keyStroke, new Caller(methodName, obj, args)));            
+        public MyMenuItem(String label, final String keyStroke, final Runnable r){
+            super(new AbstractAction(label){
+                {
+                    if(keyStroke==null? false: !keyStroke.isEmpty()){
+                        putValue(AbstractAction.ACCELERATOR_KEY, KeyStroke.getAWTKeyStroke(keyStroke));
+                    }
+                }
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    r.run();
+                }
+            });
         }
     }
     public static class MyMenu extends JMenu{
@@ -148,6 +181,7 @@ public class MyComponent{
         public IconNode(Object userObject, boolean allowsChildren, Icon icon){
             super(userObject, allowsChildren);
             this.icon = icon;
+            
         }
         public void setIcon(Icon icon){
             this.icon = icon;
@@ -174,22 +208,22 @@ public class MyComponent{
     }
     public static class IconNodeRenderer extends DefaultTreeCellRenderer {
         @Override
-        public Component getTreeCellRendererComponent(JTree tree, Object value,
-                boolean sel, boolean expanded, boolean leaf, int row,
-                boolean hasFocus) {
+        public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus){
             super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
-            Icon icon=((IconNode)value).getIcon();
-            if(icon==null){
-                HashMap icons=(HashMap)tree.getClientProperty("JTree.icons");
-                String name = ((IconNode)value).getIconName();
-                if ((icons != null) && (name != null)) {
-                    icon=(Icon)icons.get(name);
-                    if(icon != null){
-                        setIcon(icon);
+            if(value instanceof IconNode){
+                Icon icon=((IconNode)value).getIcon();
+                if(icon==null){
+                    HashMap icons=(HashMap)tree.getClientProperty("JTree.icons");
+                    String name = ((IconNode)value).getIconName();
+                    if ((icons != null) && (name != null)) {
+                        icon=(Icon)icons.get(name);
+                        if(icon != null){
+                            setIcon(icon);
+                        }
                     }
+                }else{
+                    setIcon(icon);
                 }
-            }else{
-                setIcon(icon);
             }
             return this;
         }

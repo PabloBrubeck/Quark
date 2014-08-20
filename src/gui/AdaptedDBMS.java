@@ -1,6 +1,7 @@
 package gui;
 
 import com.healthmarketscience.jackcess.*;
+import gui.MyComponent.*;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -8,7 +9,6 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
 public class AdaptedDBMS extends SimpleDBMS{
-    
     public class AdaptedDataTable extends DataTable{
         public AdaptedDataTable(Database db, String t, int... ints) {
             super(db, t, ints);
@@ -18,9 +18,8 @@ public class AdaptedDBMS extends SimpleDBMS{
             getTabbedPane().setSelectedComponent(dt);
         }
     }
-    
     @Override
-    public void openDataTables(Database dataBase){
+    public void addDataTables(Database dataBase){
         int[][] masks={{2,-3},{4,-3},{1},{1,3,-2},{1},{1,3,-2},{2,-3},{2,-3},{2,-4},{1},{2,-1}};
         try{
             int k=0;

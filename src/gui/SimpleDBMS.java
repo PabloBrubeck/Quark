@@ -5,9 +5,11 @@ import com.healthmarketscience.jackcess.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.nio.file.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.logging.*;
+import javax.imageio.*;
 import javax.swing.*;
 import javax.swing.border.*;
 import javax.swing.event.ChangeEvent;
@@ -15,11 +17,12 @@ import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileFilter;
 
 public class SimpleDBMS extends JFrame{
+    
     private final String[] menus={"File", "Edit", "View", "Tools", "Help"};
     private final SimpleDateFormat sdf=new SimpleDateFormat("hh:mm:ss EEE, dd MMM yyyy");
     private final String url="https://github.com/PabloBrubeck/Quark";
+    private final File temp=new File("C:\\Temp\\DataBasePath.txt");
     
-    private File dbFile;
     private Database db;
     private JFileChooser fileChooser;
     private JTabbedPane tabbedPane;
@@ -47,53 +50,59 @@ public class SimpleDBMS extends JFrame{
         
         //Initialize menuBar
         MyMenuItem[][] items={
-            {new MyMenuItem("Open", "control O", "openFile", this), 
-                new MyMenuItem("Save", "control S", "saveFile", this), 
-                new MyMenuItem("Exit", "alt F4", "exit", this)},
-            {new MyMenuItem("Undo", "control Z", "undo", this), 
-                new MyMenuItem("Redo", "control Y", "redo", this), 
-                new MyMenuItem("Cut", "control X", "cut", this), 
-                new MyMenuItem("Copy", "control C", "copy", this), 
-                new MyMenuItem("Paste", "control V", "paste", this),
-                new MyMenuItem("Delete", "DELETE", "delete", this)},
-            {new MyMenuItem("Search", "control F", "displaySearch", this),
-                new MyMenuItem("Full Screen", "F11", "fullScreen", this)},
-            {new MyMenuItem("Options", null, "options", this)},
-            {new MyMenuItem("Help Contents", "F1", "helpContents", this), 
-                new MyMenuItem("About", null, "about", this)}
+            {new MyMenuItem("Open", "control O", () -> openFile()), 
+                new MyMenuItem("Save", "control S", () -> saveFile()), 
+                new MyMenuItem("Exit", "alt F4", () -> exit())},
+            {new MyMenuItem("Undo", "control Z", () -> undo()), 
+                new MyMenuItem("Redo", "control Y", () -> redo()), 
+                new MyMenuItem("Cut", "control X", () -> cut()), 
+                new MyMenuItem("Copy", "control C", () -> copy()), 
+                new MyMenuItem("Paste", "control V", () -> paste()),
+                new MyMenuItem("Delete", "DELETE", () -> delete())},
+            {new MyMenuItem("Search", "control F", () -> displaySearch()),
+                new MyMenuItem("Full Screen", "F11", () -> fullScreen())},
+            {new MyMenuItem("Options", null, () -> options())},
+            {new MyMenuItem("Help Contents", "F1", () -> helpContents()), 
+                new MyMenuItem("About", null, () -> about())}
         };
-        searchBox=new JTextField(25);
-        searchBox.setVisible(false);
-        searchBox.setMaximumSize(searchBox.getPreferredSize());
-        searchBox.addKeyListener(new KeyAdapter(){
-            @Override
-            public void keyReleased(KeyEvent ke){
-                if(ke.getKeyCode()==KeyEvent.VK_ESCAPE){
-                    search("");
-                    searchBox.setVisible(false);
-                    return;
-                }
-                search(searchBox.getText());
-            }
-        });
-        searchBox.addFocusListener(new FocusAdapter(){
+        
+        searchBox=new JTextField(25){
             private boolean empty=false;
-            @Override
-            public void focusGained(FocusEvent fe){
-                if(empty){
-                    searchBox.setText("");
-                    searchBox.setForeground(Color.BLACK);
-                }
+            {
+                setVisible(false);
+                setMaximumSize(getPreferredSize());
+                addKeyListener(new KeyAdapter(){
+                    @Override
+                    public void keyReleased(KeyEvent ke){
+                        if(ke.getKeyCode()==KeyEvent.VK_ESCAPE){
+                            search("");
+                            setVisible(false);
+                            return;
+                        }
+                        search(getText());
+                    }
+                });
+                addFocusListener(new FocusAdapter(){
+                    @Override
+                    public void focusGained(FocusEvent fe){
+                        if(empty){
+                            empty=false;
+                            setText("");
+                            setForeground(Color.BLACK);
+                        }
+                    }
+                    @Override
+                    public void focusLost(FocusEvent fe){
+                        if(searchBox.getText().isEmpty()){
+                            empty=true;
+                            setText("Search (Ctrl+F)");
+                            setForeground(Color.DARK_GRAY);
+                        }
+                    }
+                });
             }
-            @Override
-            public void focusLost(FocusEvent fe){
-                if(searchBox.getText().isEmpty()){
-                    empty=true;
-                    searchBox.setText("Search (Ctrl+F)");
-                    searchBox.setForeground(Color.DARK_GRAY);
-                }
-            }
-        });
+        };
+        
         JMenuBar mb=new MyMenuBar(menus, items);
         mb.add(Box.createHorizontalGlue());
         mb.add(searchBox);
@@ -112,18 +121,14 @@ public class SimpleDBMS extends JFrame{
             }
         });
         
-        //Initialize database
-        dbFile=new File("MyDataBase.mdb");
-        if(!dbFile.exists() || dbFile.isDirectory()){
-            fileChooser.showOpenDialog(this);
-            dbFile=fileChooser.getSelectedFile();
-        }
-        try{
-            db=DatabaseBuilder.open(dbFile);
-            fileChooser.setCurrentDirectory(dbFile);
-        }catch(IOException e1){
-            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e1);
-        }
+        //Initialize tabbedPane
+        tabbedPane=new JTabbedPane();
+        cl=new ChangeListener(){
+            @Override
+            public void stateChanged(ChangeEvent ce){
+                updateInfo();
+            }
+        };
         
         //Initialize statusPanel
         infoLabel=new JLabel();
@@ -139,26 +144,59 @@ public class SimpleDBMS extends JFrame{
                 add(new RealTimeLabel(1000, new Caller("getTime", SimpleDBMS.this)), "East");
             }
         };
-        updatePath();
         
-        //Initialize tabbedPane
-        tabbedPane=new JTabbedPane();
-        openDataTables(db);
-        tabbedPane.addChangeListener(cl=new ChangeListener(){
-            @Override
-            public void stateChanged(ChangeEvent ce){
-                updateInfo();
-            }
-        });
+        //Open DataBase
+        setDatabase(getDefaultFile());
         
         //Add components to frame
         Container contentPane=getContentPane();
         contentPane.setLayout(new BorderLayout());
+        contentPane.add("North", new BackgroundPanel("resources/SQL Banner.png"));
         contentPane.add(tabbedPane, "Center");
         contentPane.add(status, "South");
     }
     
-    public void openDataTables(Database dataBase){
+    public File getDefaultFile(){
+        InputStream in;
+        try{
+            in=new FileInputStream(temp);
+        }catch(FileNotFoundException e){
+            in=getClass().getClassLoader().getResourceAsStream("resources/DataBasePath.txt");
+            try{
+                Files.copy(in, temp.toPath());
+            }catch(IOException ex){
+                Logger.getLogger(SimpleDBMS.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        try(BufferedReader br=new BufferedReader(new InputStreamReader(in))){
+            return new File(br.readLine());
+        }catch(IOException e){
+            fileChooser.showOpenDialog(this);
+            return fileChooser.getSelectedFile();
+        }
+    }
+    public void setDefaultFile(File file){
+        try(FileWriter fw=new FileWriter(temp, false)){
+            fw.write(file.getAbsolutePath());
+        }catch(IOException e){
+            Logger.getLogger(SimpleDBMS.class.getName()).log(Level.SEVERE, null, e);
+        }
+    }
+    public void setDatabase(File file){
+        try{
+            db=DatabaseBuilder.open(file);
+            tabbedPane.removeChangeListener(cl);
+            tabbedPane.removeAll();
+            addDataTables(db);
+            tabbedPane.addChangeListener(cl);
+            updatePath();
+            updateInfo();
+            fileChooser.setCurrentDirectory(file);
+        }catch(IOException e){
+            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+        }
+    }
+    public void addDataTables(Database dataBase){
         try{
             for(String s: dataBase.getTableNames()){
                 addDataTable(s, new DataTable(dataBase, s));
@@ -180,7 +218,7 @@ public class SimpleDBMS extends JFrame{
         return sdf.format(new Date());
     }
     public void updatePath(){
-        pathLabel.setText(dbFile.getAbsolutePath());
+        pathLabel.setText(db.getFile().getAbsolutePath());
     }
     public void updateInfo(){
         Component c=tabbedPane.getSelectedComponent();
@@ -194,23 +232,31 @@ public class SimpleDBMS extends JFrame{
     
     //File menu
     public void openFile(){
-        fileChooser.showOpenDialog(this);
-        dbFile=fileChooser.getSelectedFile();
-        try{
-            db.close();
-            db=DatabaseBuilder.open(dbFile);
-            tabbedPane.removeChangeListener(cl);
-            tabbedPane.removeAll();
-            openDataTables(db);
-            tabbedPane.addChangeListener(cl);
-            updatePath();
-        }catch(IOException e){
-            Logger.getLogger(this.getClass().getName()).log(Level.SEVERE, null, e);
+        int i=fileChooser.showOpenDialog(this);
+        if(i==JFileChooser.APPROVE_OPTION){
+            try {
+                File openFile=fileChooser.getSelectedFile();
+                db.close();
+                setDatabase(openFile);
+                setDefaultFile(openFile);
+            } catch (IOException ex) {
+                Logger.getLogger(SimpleDBMS.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
     public void saveFile(){
-        fileChooser.showSaveDialog(this);
-        updatePath();
+        int i=fileChooser.showSaveDialog(this);
+        if(i==JFileChooser.APPROVE_OPTION){
+            try{
+                File saveFile=fileChooser.getSelectedFile();
+                Files.copy(new FileInputStream(db.getFile()), saveFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                db.close();
+                setDatabase(saveFile);
+                setDefaultFile(saveFile);
+            }catch(IOException ex){
+                Logger.getLogger(SimpleDBMS.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
     }
     public void exit(){
         try{
@@ -285,7 +331,7 @@ public class SimpleDBMS extends JFrame{
         about.add(new JLabel("Designed with Java TM"));
         about.add(new JLabel("License: XXXX-XXXX-XXXX-XXXX"));
         about.add(new Hyperlink("Online support", url));
-        JOptionPane.showMessageDialog(null, about, "About", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(this, about, "About", JOptionPane.INFORMATION_MESSAGE);
     }
     
     public static void main(String[] args){
